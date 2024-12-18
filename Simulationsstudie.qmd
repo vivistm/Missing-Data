@@ -1,0 +1,108 @@
+---
+title: "Simulationsstudie"
+format: html
+editor: visual
+---
+```{r}
+#| echo: false
+pacman::p_load("VIM","rgl","MASS","tidyverse","mice")
+```
+## Code von Julius Simulationsstudie wie bei Julius
+
+Wir brauchen mindestens eine Variable mehr als die transformierte X^2 um MAR erzeugen zu können.
+
+Da der Text sich zu erst mit X^2 beschäftigt, glaube ich dass es sinnvoll ist das ebenfalls zu tun
+
+X3 ist die transformierte Variable X2^2
+
+Notwendigkeit von Widerholung damit Simulationsstudie
+
+
+```{r}
+  set.seed(1)
+  
+  n <- 250
+  X1 <- rnorm(n, 8, 3) # Prädiktor für X2,X3, Y
+  X2 <- 10 - 0.5 * X1 + rnorm(n, 0, 3) # weitere Variable damit MAR erzeugt werden kann
+#  X3 <- X2^2 # transformierte Variable
+  Y <- 5 + 0.6 * X1 + 0.5 * X2 + 0.3*X3+ rnorm(n, 0, sqrt(2)) # Outcome Variable
+  
+  data1 <- as.data.frame(cbind(X1, X2, X3, Y))
+  
+  # Quantities of interest for the original data set
+  (bef.Imp2 <- cbind(mean = mean(X2),
+                    var = var(X2))
+  )
+  
+  # (bef.Imp3 <- cbind(mean = mean(X3),
+  #                   var = var(X3))
+  # )
+  
+  X2NonNA <- X2 # save for later
+ # X3NonNA <- X3 # save for later
+  
+  # Generate missing values (MCAR)
+  data1$X2[sample(x = 1:n, size = n/2, replace = FALSE)] <- NA
+ #data1$X3[sample(x = 1:n, size = n/2, replace = FALSE)] <- NA
+  
+  # Missing indicators for missing data in X3
+  misind2 <- is.na(data1$X2)
+ # misind3 <- is.na(data1$X3)
+  # Indicators for observed (not missing) data in X3
+  obsind2 <- !is.na(data1$X2)
+ # obsind3 <- !is.na(data1$X3)
+  
+  
+  layout(matrix(c(1,2,2), nrow=1))
+  barMiss(data1, pos=1)
+  marginplot(data1[, c("X2", "X3")])
+```
+
+# Impute than transform von Julius
+irgendwas funktioniert noch nicht so wie es sollte
+```{r}
+imp <- mice(data1, print = FALSE, seed = 71712)
+long <- complete(imp, "long", include = TRUE)
+long$X3 <- with(long, X2^2)
+imp.itt <- as.mids(long)   # Converts an imputed dataset (long format) into a mids object
+
+imp.itt
+
+# -> transformed variable cannot be used for imputation..
+
+
+#plot the imputed values
+long_Imp1 <- 
+  long %>% filter(.imp == 1) %>% 
+  mutate("X2" = imp$where[,2],
+         "X3" = imp$where[,3]) %>% 
+  mutate("X3_imp" = X2)
+
+marginplot(x = long_Imp1[,c("X2","X3","X3_imp")], delimiter = "_imp")
+
+```
+
+# Transform than Impute von Julius
+
+```{r}
+data1$X3 <- data1$X2^2
+
+imp.jav1 <- mice(data, seed = 32093, print = FALSE)
+pred <- make.predictorMatrix(data)
+pred
+
+# set relevant entries to 0 to prevent automatic removal
+pred[c("wgt", "whr"), c("wgt", "whr")] <- 0
+pred[c("hgt", "whr"), c("hgt", "whr")] <- 0
+pred
+
+imp.jav2 <- mice(data, pred = pred, seed = 32093, print = TRUE)
+```
+
+
+```{r}
+#| echo: false
+2 * 2
+```
+
+The `echo: false` option disables the printing of code (only output is displayed).

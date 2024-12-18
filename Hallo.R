@@ -1,1 +1,1 @@
-Ist das erste Script
+# Einfach nur ein Dokument
