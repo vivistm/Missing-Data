@@ -1,0 +1,146 @@
+---
+title: "Aktuelleste Fassung"
+author: "Vivian"
+format: html
+editor: visual
+---
+Aktuellste Gedanken/Ideen:
+
+- ich glaube man muss die Sachen, die ich für den Mittelwert gemacht habe für Regressionen machen
+- daher siehe Code in Simulationsstudie vor allem Combining Rules beachten
+
+```{r}
+#| echo: false
+pacman::p_load("VIM","rgl","MASS","tidyverse","mice")
+```
+# Patterns
+```{r}
+set.seed(1)
+  
+n <- 10000
+X1 <- rnorm(n, 8, 3) # Prädiktor für X2,X3, Y
+X2 <- rnorm(n, 0, 3) # weitere Variable damit MAR erzeugt werden kann
+X3 <- X2^2 # transformierte Variable
+Y <- 5 + 0.6 * X1 + 0.5 * X2 + 0.3*X3+ rnorm(n, 0, sqrt(2)) # Outcome Variable
+  
+data1 <- as.data.frame(cbind(X1, X2, X3, Y))
+  
+  # Quantities of interest for the original data set
+(bef.Imp2 <- cbind(mean = mean(X2), # Überlegen ob ich Mean brauche oder den True Mean den ich in die Daten gebe
+                    var = var(X2)))
+  
+(bef.Imp3 <- cbind(mean = mean(X3),
+                     var = var(X3)))
+
+# Generate missing values (MCAR)
+data1$X2[sample(x = 1:n, size = n/2, replace = FALSE)] <- NA
+data1$X3[sample(x = 1:n, size = n/2, replace = FALSE)] <- NA
+
+# Pattern
+md.pattern(data1)
+VIM::aggr(data1)
+marginplot(data1[, c("X2", "Y")])
+marginplot(data1[, c("X3", "Y")])
+```
+#Impute, than transform mit Wiederholungen 
+- Bias, MSE, Lower and Upperbound von Konfidenzintervallen - Coverage - CI- range könnte man noch machen
+
+```{r}
+set.seed(123) # Seed für Reproduzierbarkeit
+S <- 200 # Anzahl der Simulationen
+n <- 50 # Stichprobengröße
+M <- 5
+
+# Vektoren initialisieren
+TrueMeanVec2 <- numeric(S)
+TrueMeanVec3 <- numeric(S)
+ImpMeanVec2 <- numeric(S)
+ImpMeanVec3 <- numeric(S)
+BiasVec2 <- numeric(S)
+BiasVec3 <- numeric(S)
+MSEVec2 <- numeric(S)
+MSEVec3 <- numeric(S)
+UpperBoundVec2 <- numeric(S)
+LowerBoundVec2 <- numeric(S)
+UpperBoundVec3 <- numeric(S)
+LowerBoundVec3 <- numeric(S)
+
+for (s in 1:S) {
+  X1 <- rnorm(n, 8, 3)
+  X2 <- 10 - 0.5 * X1 + rnorm(n, 0, 3)
+  X3 <- X2^2
+  Y <- 5 + 0.6 * X1 + 0.5 * X2 + 0.3 * X3 + rnorm(n, 0, sqrt(2))
+  
+  bef.Imp2 <- cbind(mean = mean(X2), var = var(X2))
+  bef.Imp3 <- cbind(mean = mean(X3), var = var(X3))
+  
+  data1 <- as.data.frame(cbind(X1, X2, X3, Y))
+  data1$X2[sample(x = 1:n, size = n/2, replace = FALSE)] <- NA
+  data1$X3[sample(x = 1:n, size = n/2, replace = FALSE)] <- NA
+  
+  imp <- mice(data1, print = FALSE, seed = s, m = 5)
+  com_data1 <- complete(imp, "long", include = TRUE)
+  com_data1$X3 <- with(com_data1, X2^2)
+  imp_data1 <- com_data1[com_data1$.imp == M, ]
+  
+  after.Imp2 <- cbind(mean = mean(imp_data1$X2), var = var(imp_data1$X2))
+  after.Imp3 <- cbind(mean = mean(imp_data1$X3), var = var(imp_data1$X3))
+  
+  TrueMeanVec2[s] <- bef.Imp2[,"mean"]
+  TrueMeanVec3[s] <- bef.Imp3[,"mean"]
+  ImpMeanVec2[s] <- after.Imp2[,"mean"]
+  ImpMeanVec3[s] <- after.Imp3[,"mean"]
+  BiasVec2[s] <- after.Imp2[,"mean"] - bef.Imp2[,"mean"]
+  BiasVec3[s] <- after.Imp3[,"mean"] - bef.Imp3[,"mean"]
+  MSEVec2[s] <- (after.Imp2[,"mean"] - bef.Imp2[,"mean"])^2
+  MSEVec3[s] <- (after.Imp3[,"mean"] - bef.Imp3[,"mean"])^2
+  UpperBoundVec2[s] <- ImpMeanVec2[s] + 1.96 * sqrt(after.Imp2[,"var"]) / sqrt(n)
+  LowerBoundVec2[s] <- ImpMeanVec2[s] - 1.96 * sqrt(after.Imp2[,"var"]) / sqrt(n)
+  UpperBoundVec3[s] <- ImpMeanVec3[s] + 1.96 * sqrt(after.Imp3[,"var"]) / sqrt(n)
+  LowerBoundVec3[s] <- ImpMeanVec3[s] - 1.96 * sqrt(after.Imp3[,"var"]) / sqrt(n)
+
+}
+
+
+
+TotDat <- data.frame(
+  "Iteration" = 1:S,
+  TrueMeanVec2, ImpMeanVec2, TrueMeanVec3, ImpMeanVec3,
+  BiasVec2, BiasVec3, UpperBoundVec3, LowerBoundVec3,
+  MSEVec2, MSEVec3, UpperBoundVec2, LowerBoundVec2
+)
+head(TotDat)
+class(TotDat)
+
+
+Conf_Inter_2 <- TotDat  %>% filter( Iteration < 101) %>% 
+  ggplot(aes(x = Iteration)) +
+  geom_errorbar(aes(ymin = UpperBoundVec2, ymax = LowerBoundVec2)) +
+  geom_point(aes(y   = TrueMeanVec2), col = "#593196")+
+  theme_bw()
+
+Conf_Inter_3 <- TotDat  %>% filter( Iteration < 101) %>% 
+  ggplot(aes(x = Iteration)) +
+  geom_errorbar(aes(ymin = UpperBoundVec3, ymax = LowerBoundVec3)) +
+  geom_point(aes(y = TrueMeanVec3), col = "#593196")+
+  theme_bw()
+
+colMeans(TotDat)
+
+TotDat$CIrange2 <- UpperBoundVec2-LowerBoundVec2
+TotDat$CIrange3 <-UpperBoundVec3-LowerBoundVec3
+
+# Coverage
+Coverage2 <- TotDat  %>% 
+  summarise("Coverage2" = mean((LowerBoundVec2 <= TrueMeanVec2 & UpperBoundVec2 >= TrueMeanVec2)))
+
+# Coverage 2 liegt bei 1, dass finde ich schon krass
+
+Coverage3 <- TotDat %>% 
+  summarise("Coverage3" = mean((LowerBoundVec3<= TrueMeanVec3 & UpperBoundVec3 >= TrueMeanVec3)))
+
+
+
+```
+
+
