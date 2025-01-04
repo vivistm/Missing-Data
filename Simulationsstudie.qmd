@@ -389,4 +389,61 @@ quantVar <- function(y, p = 0.9){
   sigma <- (p*(1-p))/(dens_y(quant)^2)
   return(sigma)
 }
+
+meanDiag()
+```
+
+# meanDiag /paramDiag Funktion
+```{r}
+meanDiag <- function(data, alpha=0.05, trueValue,...) {
+  #Estimation of mean and CI
+    mean.X3 <- mean(data$X3, na.rm=TRUE)
+    CI.low <- mean.X3 - qnorm(1-alpha/2)*sqrt(var(data$X3,na.rm=TRUE)/sum(!is.na(data$X3)))
+    CI.hi <- mean.X3 + qnorm(1-alpha/2)*sqrt(var(data$X3,na.rm=TRUE)/sum(!is.na(data$X3)))
+    
+    #Calculation of coverage
+    coverage <- calc_coverage(value = trueValue, 
+                              CI_low = CI.low, 
+                              CI_upper = CI.hi) 
+    #calculation of Bias
+    relbias <- calc_rel_bias(value = trueValue, est = mean.X3)
+
+    
+    Imp <- data.frame("Param" = "mu3",
+                      "meanVal"= mean.X3, 
+                     "in-PI"= coverage, 
+                     "relBias" = relbias)
+    
+    return(Imp)
+}
+
+
+paramDiag <- function(data, alpha=0.05, trueValue,...) {
+  
+  #caclulation of linear model
+    model <- lm(X3~X1+X2, data=data, na.action = "na.omit")
+    
+    #get parameters
+    beta.hat <- model$coefficients
+    se.beta.hat <- summary(model)$coefficients[ ,2]
+    
+    #calculate CI of beta parameters
+    CI.low <- beta.hat - qnorm(1-alpha/2)*se.beta.hat
+    CI.hi <- beta.hat + qnorm(1-alpha/2)*se.beta.hat
+    
+    coverage <- calc_coverage(value = trueValue, CI_low = CI.low, CI_upper = CI.hi) 
+    
+    relbias <- calc_rel_bias(value = trueValue, est = beta.hat)
+    
+    Ret <- data.frame("Param" = c("b0","b1","b2"),
+                      "meanVal"= beta.hat,
+                      "in-PI" = coverage,
+                      "relBias" = relbias)
+    
+    rownames(Ret) <- NULL
+    
+    return(Ret)
+    
+}
+
 ```

@@ -6,8 +6,10 @@ editor: visual
 ---
 Aktuellste Gedanken/Ideen:
 
-- ich glaube man muss die Sachen, die ich für den Mittelwert gemacht habe für Regressionen machen
-- daher siehe Code in Simulationsstudie vor allem Combining Rules beachten
+- Regression gemacht jetzt müssen noch die True Values Aktualisieren und die Funktion so umschreiben, dass wir das nicht nur für X3 machen
+- Coverage funktioniert gut, Bias blicke ich noch nicht so durch (müsste ich auch berechnet haben nur wo ist die Auswertung)
+- daher siehe Code in Simulationsstudie vor allem Combining Rules beachten (keine Ahung was da abgeht)
+
 
 ```{r}
 #| echo: false
@@ -143,4 +145,282 @@ Coverage3 <- TotDat %>%
 
 ```
 
+```{r}
+set.seed(123) # Seed für Reproduzierbarkeit
+S <- 200 # Anzahl der Simulationen
+n <- 50 # Stichprobengröße
+M <- 5
 
+
+# functions for diagnostics:
+calc_coverage <- function(value, CI_low, CI_upper) {
+  (CI_low <= value & CI_upper >= value)
+}
+
+calc_rel_bias <- function(value, est) {
+  rel_bias <- (est - value) / value
+  return(rel_bias)
+}
+
+meanDiag <- function(data, alpha=0.05, trueValue,...) {
+  #Estimation of mean and CI
+    mean.X3 <- mean(data$X3, na.rm=TRUE)
+    CI.low <- mean.X3 - qnorm(1-alpha/2)*sqrt(var(data$X3,na.rm=TRUE)/sum(!is.na(data$X3)))
+    CI.hi <- mean.X3 + qnorm(1-alpha/2)*sqrt(var(data$X3,na.rm=TRUE)/sum(!is.na(data$X3)))
+    
+    #Calculation of coverage
+    coverage <- calc_coverage(value = trueValue, 
+                              CI_low = CI.low, 
+                              CI_upper = CI.hi) 
+    #calculation of Bias
+    relbias <- calc_rel_bias(value = trueValue, est = mean.X3)
+
+    
+    Imp <- data.frame("Param" = "mu3",
+                      "meanVal"= mean.X3, 
+                     "in-PI"= coverage, 
+                     "relBias" = relbias)
+    
+    return(Imp)
+}
+
+# Funktion ohne quadratischer Term
+paramDiag <- function(data, alpha=0.05, trueValue,...) {
+  
+  #caclulation of linear model
+    model <- lm(Y~X1+X2+X3, data=data, na.action = "na.omit")
+    
+    #get parameters
+    beta.hat <- model$coefficients
+    se.beta.hat <- summary(model)$coefficients[ ,2]
+    
+    #calculate CI of beta parameters
+    CI.low <- beta.hat - qnorm(1-alpha/2)*se.beta.hat
+    CI.hi <- beta.hat + qnorm(1-alpha/2)*se.beta.hat
+    
+    coverage <- calc_coverage(value = trueValue, CI_low = CI.low, CI_upper = CI.hi) 
+    
+    relbias <- calc_rel_bias(value = trueValue, est = beta.hat)
+    
+    Ret <- data.frame("Param" = c("b0","b1","b2","b3"),
+                      "meanVal"= beta.hat,
+                      "in-PI" = coverage,
+                      "relBias" = relbias)
+    
+    rownames(Ret) <- NULL
+    
+    return(Ret)
+    
+}
+
+ImpBD <- vector("list", S)
+ImpAI <- vector("list", S)
+
+
+for (s in 1:S) {
+  X1 <- rnorm(n, 8, 3)
+  X2 <- 10 - 0.5 * X1 + rnorm(n, 0, 3)
+  X3 <- X2^2
+  Y <- 5 + 0.6 * X1 + 0.5 * X2 + 0.3 * X3 + rnorm(n, 0, sqrt(2))
+  
+  data1 <- as.data.frame(cbind(X1, X2, X3, Y))
+  data1$X2[sample(x = 1:n, size = n/2, replace = FALSE)] <- NA
+  data1$X3[sample(x = 1:n, size = n/2, replace = FALSE)] <- NA
+  
+  imp <- mice(data1, print = FALSE, seed = s, m = 5)
+  com_data1 <- complete(imp, "long", include = TRUE)
+  com_data1$X3 <- with(com_data1, X2^2)
+  imp_data1 <- com_data1[com_data1$.imp == M, ]
+  
+  #1.) Calculate Mean, CI and Bias of X3 variable
+  data1.m <- meanDiag(data1,trueValue = 47.25)
+  imp_data1.m <- meanDiag(imp_data1,trueValue = 47.25)
+  
+  #2.) Calculate beta values, CI and rel Bias 
+    data1.p<- paramDiag(data1, trueValue = c(5,0.6,0.5,0.3), alpha = 0.05)      
+  imp_data1.p <- paramDiag(imp_data1, trueValue = c(5,0.6,0.5,0.3), alpha = 0.05)
+
+  ImpBD[[s]] <- rbind(data1.m,       # save results for the i-th BD dataset
+                        data1.p)
+
+  ImpAI[[s]] <- rbind(imp_data1.m,      # save results for the i-th SR dataset
+                        imp_data1.p)
+}
+
+ 
+ImpAI[[1]]
+
+```
+# Ergebnisse
+
+```{r}
+LongResultBD <- ImpBD %>% 
+                bind_rows() %>% 
+                mutate(Param  = factor(Param, 
+                                       level = unique(Param),
+                                       labels = c(expression(mu[3]),
+                                                  expression(beta[0]),
+                                                  expression(beta[1]),
+                                                  expression(beta[2]),
+                                                  expression(beta[3])))) %>% 
+                group_by(Param) %>% 
+                mutate("Type"="BeforeDeletion") 
+                
+
+LongResultSR <- ImpAI %>% 
+                bind_rows() %>% 
+                mutate(Param  = factor(Param, 
+                                       level = unique(Param),
+                                       labels = c(expression(mu[3]),
+                                                  expression(beta[0]),
+                                                  expression(beta[1]),
+                                                  expression(beta[2]),
+                                                  expression(beta[3])))) %>% 
+                group_by(Param) %>% 
+                mutate("Type"="MI pmm")
+
+
+CoverageBD <- LongResultBD %>% 
+              summarise("Coverage"=mean(in.PI)) %>% 
+              mutate("Type"="BeforeDeletion")
+
+CoverageSR <- LongResultSR %>% 
+              summarise("Coverage"=mean(in.PI)) %>% 
+              mutate("Type"="MI pmm")
+```
+
+# Variablen und True Values fixen
+```{r}
+set.seed(123) # Seed für Reproduzierbarkeit
+S <- 200 # Anzahl der Simulationen
+n <- 50 # Stichprobengröße
+M <- 5 # Anzahl der Imputationen
+
+
+# functions for diagnostics:
+calc_coverage <- function(value, CI_low, CI_upper) {
+  (CI_low <= value & CI_upper >= value)
+}
+
+calc_rel_bias <- function(value, est) {
+  rel_bias <- (est - value) / value
+  return(rel_bias)
+}
+
+meanDiag <- function(data, alpha=0.05, trueValue, variable,...) {
+  #Estimation of mean and CI
+    mean.X3 <- mean(data$variable, na.rm=TRUE)
+    CI.low <- mean.X3 - qnorm(1-alpha/2)*sqrt(var(data$X3,na.rm=TRUE)/sum(!is.na(data$X3)))
+    CI.hi <- mean.X3 + qnorm(1-alpha/2)*sqrt(var(data$X3,na.rm=TRUE)/sum(!is.na(data$X3)))
+    
+    #Calculation of coverage
+    coverage <- calc_coverage(value = trueValue, 
+                              CI_low = CI.low, 
+                              CI_upper = CI.hi) 
+    #calculation of Bias
+    relbias <- calc_rel_bias(value = trueValue, est = mean.X3)
+
+    
+    Imp <- data.frame("Param" = "mu3",
+                      "meanVal"= mean.X3, 
+                     "in-PI"= coverage, 
+                     "relBias" = relbias)
+    
+    return(Imp)
+}
+
+# Funktion ohne quadratischer Term
+paramDiag <- function(data, alpha=0.05, trueValue,...) {
+  
+  #caclulation of linear model
+    model <- lm(Y~X1+X2+X3, data=data, na.action = "na.omit")
+    
+    #get parameters
+    beta.hat <- model$coefficients
+    se.beta.hat <- summary(model)$coefficients[ ,2]
+    
+    #calculate CI of beta parameters
+    CI.low <- beta.hat - qnorm(1-alpha/2)*se.beta.hat
+    CI.hi <- beta.hat + qnorm(1-alpha/2)*se.beta.hat
+    
+    coverage <- calc_coverage(value = trueValue, CI_low = CI.low, CI_upper = CI.hi) 
+    
+    relbias <- calc_rel_bias(value = trueValue, est = beta.hat)
+    
+    Ret <- data.frame("Param" = c("b0","b1","b2","b3"),
+                      "meanVal"= beta.hat,
+                      "in-PI" = coverage,
+                      "relBias" = relbias)
+    
+    rownames(Ret) <- NULL
+    
+    return(Ret)
+    
+}
+
+ImpBD <- vector("list", S)
+ImpAI <- vector("list", S)
+
+
+for (s in 1:S) {
+  X1 <- rnorm(n, 8, 3)
+  X2 <- 10 - 0.5 * X1 + rnorm(n, 0, 3)
+  X3 <- X2^2
+  Y <- 5 + 0.6 * X1 + 0.5 * X2 + 0.3 * X3 + rnorm(n, 0, sqrt(2))
+  
+  data1 <- as.data.frame(cbind(X1, X2, X3, Y))
+  data1$X2[sample(x = 1:n, size = n/2, replace = FALSE)] <- NA
+  data1$X3[sample(x = 1:n, size = n/2, replace = FALSE)] <- NA
+  
+  imp <- mice(data1, print = FALSE, seed = s, m = 5)
+  com_data1 <- complete(imp, "long", include = TRUE)
+  com_data1$X3 <- with(com_data1, X2^2)
+  imp_data1 <- com_data1[com_data1$.imp == M, ]
+  
+  #1.) Calculate Mean, CI and Bias of X3 variable
+  data1.m <- meanDiag(data1,trueValue = 47.25)
+  imp_data1.m <- meanDiag(imp_data1,trueValue = 47.25)
+  
+  #2.) Calculate beta values, CI and rel Bias 
+    data1.p<- paramDiag(data1, trueValue = c(5,0.6,0.5,0.3), alpha = 0.05)      
+  imp_data1.p <- paramDiag(imp_data1, trueValue = c(5,0.6,0.5,0.3), alpha = 0.05)
+
+  ImpBD[[s]] <- rbind(data1.m,       # save results for the i-th BD dataset
+                        data1.p)
+
+  ImpAI[[s]] <- rbind(imp_data1.m,      # save results for the i-th SR dataset
+                        imp_data1.p)
+}
+
+ 
+ImpAI[[1]]
+
+```
+
+
+```{r}
+meanDiag <- function(data, alpha=0.05, trueValue, variable,...) {
+  #Estimation of mean and CI
+    mean.v <- mean(data[variable], na.rm=TRUE)
+    CI.low <- mean.v - qnorm(1-alpha/2)*sqrt(var(data[variable],na.rm=TRUE)/sum(!is.na(data[[variable]])))
+    CI.hi <- mean.v + qnorm(1-alpha/2)*sqrt(var(data[variable]],na.rm=TRUE)/sum(!is.na(data[[variable]])))
+    
+    #Calculation of coverage
+    coverage <- calc_coverage(value = trueValue, 
+                              CI_low = CI.low, 
+                              CI_upper = CI.hi) 
+    #calculation of Bias
+    relbias <- calc_rel_bias(value = trueValue, est = mean.v)
+
+    
+    Imp <- data.frame("Param" = "mu3",
+                      "meanVal"= mean.v, 
+                     "in-PI"= coverage, 
+                     "relBias" = relbias)
+    
+    return(Imp)
+}
+meanDiag(data1,trueValue = 6,variable = X2)
+
+data1$X2
+```
