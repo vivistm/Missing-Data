@@ -278,7 +278,7 @@ for (s in 1:S) {
   pred["X2", "X3"] <- 0   
   pred["X3", "X2"] <- 0
   
-  imp <- mice(data1, print = FALSE, seed = s, m = 5)
+  imp <- mice(data1,pred = pred, print = FALSE, seed = s, m = 5)
   com_data1 <- complete(imp, "long", include = TRUE)
   imp_data1 <- com_data1
   
