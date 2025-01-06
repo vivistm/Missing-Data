@@ -10,6 +10,7 @@ Aktuellste Gedanken/Ideen:
 - daher siehe Code in Simulationsstudie vor allem Combining Rules beachten (keine Ahung was da abgeht)/Pooling der Ergebnisse
 - In der einen Funktion ist noch kein quadratischer Term eingebaut, dringend notwendig!!! (lm_func funktioniert nicht)
 - ich filtere ja nichtmehr M, wie wirkt sich das aus? Also in der Auswertung
+- Problem  bei Impute, than transform wir dürfen beim Imputieren nicht X3 verwenden und nur na von X3 werden imputiert
 
 
 ```{r}
@@ -46,7 +47,8 @@ marginplot(data1[, c("X2", "Y")])
 marginplot(data1[, c("X3", "Y")])
 ```
 
-# Mit Y Analysiert
+# Impute, then transform
+- Y Analysiert 
 ```{r}
 
 set.seed(123) # Seed für Reproduzierbarkeit
@@ -134,9 +136,10 @@ for (s in 1:S) {
   data1$X2[sample(x = 1:n, size = n/2, replace = FALSE)] <- NA
   data1$X3[sample(x = 1:n, size = n/2, replace = FALSE)] <- NA
   
-  imp <- mice(data1, print = FALSE, seed = s, m = 5)
+  imp <- mice(data1[, -which(names(data1) == "X3")], print = FALSE, seed = s, m = 5)
   com_data1 <- complete(imp, "long", include = TRUE)
-  com_data1$X3 <- with(com_data1, X2^2)
+  com_data1$X3 <- with(com_data1, X2^2) # wir ersetzten auch vorhanden werte von X3
+  # nur okay, wegen Impute,than transform
   imp_data1 <- com_data1
   #imp_data1 <- com_data1[com_data1$.imp == M, ] das ist dumm
   
@@ -180,3 +183,143 @@ LongResultAI <- ImpAI %>%
 
 
 ```
+
+# Transform, then impute
+- noch nicht richtig
+- Y Analysiert 
+```{r}
+
+set.seed(123) # Seed für Reproduzierbarkeit
+S <- 200 # Anzahl der Simulationen
+n <- 50 # Stichprobengröße
+M <- 5
+
+trueVal.Y <- c(26.3,5,0.6,0.5,0.3)
+
+# functions for diagnostics:
+calc_coverage <- function(value, CI_low, CI_upper) {
+  (CI_low <= value & CI_upper >= value)
+}
+
+calc_rel_bias <- function(value, est) {
+  rel_bias <- (est - value) / value
+  return(rel_bias)
+}
+
+meanDiag <- function(data, alpha=0.05, trueValue, variable,...) {
+  #Estimation of mean and CI
+    mean.v <- mean(data[[variable]], na.rm=TRUE)
+    CI.low <- mean.v - qnorm(1-alpha/2)*sqrt(var(data[[variable]],na.rm=TRUE)/sum(!is.na(data[[variable]])))
+    CI.hi <- mean.v + qnorm(1-alpha/2)*sqrt(var(data[[variable]],na.rm=TRUE)/sum(!is.na(data[[variable]])))
+    
+    #Calculation of coverage
+    coverage <- calc_coverage(value = trueValue, 
+                              CI_low = CI.low, 
+                              CI_upper = CI.hi) 
+    #calculation of Bias
+    relbias <- calc_rel_bias(value = trueValue, est = mean.v)
+
+    
+    Imp <- data.frame(
+                      "Variable" = variable,
+                      "Param" = "mu",
+                      "meanVal"= mean.v, 
+                     "in-PI"= coverage, 
+                     "relBias" = relbias)
+    
+    return(Imp)
+}
+
+# Funktion ohne quadratischer Term
+paramDiag <- function(data, alpha=0.05, trueValue,...) {
+  
+  #caclulation of linear model
+    model <- lm(Y~X1+X2+X3, data=data, na.action = "na.omit")
+    
+    #get parameters
+    beta.hat <- model$coefficients
+    se.beta.hat <- summary(model)$coefficients[ ,2]
+    
+    #calculate CI of beta parameters
+    CI.low <- beta.hat - qnorm(1-alpha/2)*se.beta.hat
+    CI.hi <- beta.hat + qnorm(1-alpha/2)*se.beta.hat
+    
+    coverage <- calc_coverage(value = trueValue, CI_low = CI.low, CI_upper = CI.hi) 
+    
+    relbias <- calc_rel_bias(value = trueValue, est = beta.hat)
+    
+    Ret <- data.frame("Variable"= "Y",
+       "Param" = c("b0","b1","b2","b3"),
+                      "meanVal"= beta.hat,
+                      "in-PI" = coverage,
+                      "relBias" = relbias)
+    
+    rownames(Ret) <- NULL
+    
+    return(Ret)
+    
+}
+
+ImpBD <- vector("list", S)
+ImpAI <- vector("list", S)
+
+
+for (s in 1:S) {
+  X1 <- rnorm(n, 8, 3)
+  X2 <- 10 - 0.5 * X1 + rnorm(n, 0, 3)
+  X3 <- X2^2
+  Y <- 5 + 0.6 * X1 + 0.5 * X2 + 0.3 * X2^2 + rnorm(n, 0, sqrt(2))
+  
+  data1 <- as.data.frame(cbind(X1, X2, X3, Y))
+  data1$X2[sample(x = 1:n, size = n/2, replace = FALSE)] <- NA
+  
+  data1$X3 <- data1$X2^2 # hier überschreiben wir die Werte wieder, sodass auch NAs vorliegen
+  pred <- make.predictorMatrix(data1)
+  pred["X2", "X3"] <- 0   
+  pred["X3", "X2"] <- 0
+  
+  imp <- mice(data1, print = FALSE, seed = s, m = 5)
+  com_data1 <- complete(imp, "long", include = TRUE)
+  imp_data1 <- com_data1
+  
+  #1.) Calculate Mean, CI and Bias of Y variable
+  data1.m <- meanDiag(data1,trueValue = trueVal.Y[1],variable = "Y")
+  imp_data1.m <- meanDiag(imp_data1,trueValue = trueVal.Y[1],variable = "Y")
+  
+  #2.) Calculate beta values, CI and rel Bias 
+  data1.p<- paramDiag(data1, trueValue = trueVal.Y[-1], alpha = 0.05)      
+  imp_data1.p <- paramDiag(imp_data1, trueValue = trueVal.Y[-1], alpha = 0.05)
+
+  ImpBD[[s]] <- rbind(data1.m,       # save results for the i-th BD dataset
+                        data1.p)
+
+  ImpAI[[s]] <- rbind(imp_data1.m,      # save results for the i-th SR dataset
+                        imp_data1.p)
+}
+
+ImpBD[[S]]
+
+ImpAI[[S]]
+
+
+LongResultBD <- ImpBD %>% 
+                bind_rows() %>% 
+                mutate(Param  = factor(Param, 
+                       level = unique(Param),
+                       labels = c("mu", "beta0", "beta1", "beta2", "beta3"))) %>% 
+                group_by(Param) %>% 
+                mutate("Type"="BeforeDeletion") 
+                
+
+
+LongResultAI <- ImpAI %>% 
+                bind_rows() %>% 
+                mutate(Param  = factor(Param, 
+                       level = unique(Param),
+                       labels = c("mu", "beta0", "beta1", "beta2", "beta3"))) %>% 
+                group_by(Param)%>% 
+                mutate("Type"="AfterImputation")
+
+
+```
+
