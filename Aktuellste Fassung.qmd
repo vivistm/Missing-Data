@@ -7,7 +7,8 @@ editor: visual
 Aktuellste Gedanken/Ideen:
 
 - Coverage funktioniert gut, Bias blicke ich noch nicht so durch (müsste ich auch berechnet haben nur wo ist die Auswertung)
-- daher siehe Code in Simulationsstudie vor allem Combining Rules beachten (keine Ahung was da abgeht)/Pooling der Ergebnisse
+- daher siehe Code in Simulationsstudie vor allem Combining Rules beachten (keine Ahung was da abgeht)
+- Pooling der Ergebnisse (könnte einfach besser sein, ist aber schon ganz okay)
 - ich filtere ja nichtmehr M, wie wirkt sich das aus? Also in der Auswertung
 
 
@@ -44,11 +45,49 @@ data1 <- as.data.frame(cbind(X1, X2, X3, Y))
   data1$X2[obs_with_na] <- NA
   data1$X3[obs_with_na] <- NA # Wir kennen nicht X3 wenn wir nicht die Daten von X2 haben (also ist notwendig für die Berechnung)
 
-# Pattern
-md.pattern(data1)
-VIM::aggr(data1)
-marginplot(data1[, c("X2", "Y")])
-marginplot(data1[, c("X3", "Y")])
+# # Pattern
+# md.pattern(data1)
+# VIM::aggr(data1)
+# marginplot(data1[, c("X2", "Y")])
+# marginplot(data1[, c("X3", "Y")])
+  
+  
+# Nur um es einmal aus zuprobieren ohne Schleife
+
+X1 <- rnorm(n, 8, 3)
+  X2 <- 10 - 0.5 * X1 + rnorm(n, 0, 3)
+  X3 <- X2^2
+  Y <- 5 + 0.6 * X1 + 0.5 * X2 + 0.3 * X3 + rnorm(n, 0, sqrt(2))
+  
+  data1 <- as.data.frame(cbind(X1, X2, X3, Y))
+  obs_with_na <- sample(x = 1:n, size = n/2, replace = FALSE)
+  data1$X2[obs_with_na] <- NA
+  data1$X3[obs_with_na] <- NA # Wir kennen nicht X3 wenn wir nicht die Daten von X2 haben (also ist notwendig für die Berechnung)
+  
+  imp <- mice(data1[, -which(names(data1) == "X3")], print = FALSE, seed = s, m = 5)
+  com_data1 <- complete(imp, "long", include = TRUE)
+  com_data1$X3 <- with(com_data1, X2^2) # wir ersetzten auch vorhanden werte von X3
+  # nur okay, wegen Impute,than transform
+  imp_data1 <- com_data1
+  model_fit <- with(imp, lm(Y ~ X1 + X2 + I(X2^2)))
+
+# 4. Kombiniere die Ergebnisse aus den Modellen
+pooled_results <- pool(model_fit)
+  #imp_data1 <- com_data1[com_data1$.imp == M, ] das ist dumm
+  
+  #1.) Calculate Mean, CI and Bias of Y variable
+  data1.m <- meanDiag(data1,trueValue = trueVal.Y[1],variable = "Y")
+  imp_data1.m <- meanDiag(imp_data1,trueValue = trueVal.Y[1],variable = "Y")
+  
+  #2.) Calculate beta values, CI and rel Bias 
+  data1.p<- paramDiagsqrt(data1, trueValue = trueVal.Y[-1], alpha = 0.05)      
+  imp_data1.p <- paramDiagsqrt(imp_data1, trueValue = trueVal.Y[-1], alpha = 0.05)
+
+  ImpBD[[s]] <- rbind(data1.m,       # save results for the i-th BD dataset
+                        data1.p)
+
+  ImpAI[[s]] <- rbind(imp_data1.m,      # save results for the i-th SR dataset
+                        imp_data1.p)
 ```
 
 # Impute, then transform
@@ -403,3 +442,261 @@ SummaryResults <- CombinedResults %>%
 
 ```
 
+# Versuch: Pool
+```{r}
+
+set.seed(123) # Seed für Reproduzierbarkeit
+S <- 200 # Anzahl der Simulationen
+n <- 50 # Stichprobengröße
+M <- 5
+
+trueVal.Y <- c(26.3,5,0.6,0.5,0.3)
+
+# functions for diagnostics:
+calc_coverage <- function(value, CI_low, CI_upper) {
+  (CI_low <= value & CI_upper >= value)
+}
+
+calc_rel_bias <- function(value, est) {
+  rel_bias <- (est - value) / value
+  return(rel_bias)
+}
+
+meanDiag <- function(data, alpha=0.05, trueValue, variable,...) {
+  #Estimation of mean and CI
+    mean.v <- mean(data[[variable]], na.rm=TRUE)
+    CI.low <- mean.v - qnorm(1-alpha/2)*sqrt(var(data[[variable]],na.rm=TRUE)/sum(!is.na(data[[variable]])))
+    CI.hi <- mean.v + qnorm(1-alpha/2)*sqrt(var(data[[variable]],na.rm=TRUE)/sum(!is.na(data[[variable]])))
+    
+    #Calculation of coverage
+    coverage <- calc_coverage(value = trueValue, 
+                              CI_low = CI.low, 
+                              CI_upper = CI.hi) 
+    #calculation of Bias
+    relbias <- calc_rel_bias(value = trueValue, est = mean.v)
+
+    
+    Imp <- data.frame(
+                      "Variable" = variable,
+                      "Param" = "mu",
+                      "meanVal"= mean.v, 
+                     "in-PI"= coverage, 
+                     "relBias" = relbias)
+    
+    return(Imp)
+}
+
+
+
+# Funktion mit quadratischer Term
+paramDiagsqrt <- function(data, alpha=0.05, trueValue,...) {
+  
+  #caclulation of linear model
+    model <- lm(Y~X1+X2+I(X2^2), data=data, na.action = "na.omit")
+    
+    #get parameters
+    beta.hat <- model$coefficients
+    se.beta.hat <- summary(model)$coefficients[ ,2]
+    
+    #calculate CI of beta parameters
+    CI.low <- beta.hat - qnorm(1-alpha/2)*se.beta.hat
+    CI.hi <- beta.hat + qnorm(1-alpha/2)*se.beta.hat
+    
+    coverage <- calc_coverage(value = trueValue, CI_low = CI.low, CI_upper = CI.hi) 
+    
+    relbias <- calc_rel_bias(value = trueValue, est = beta.hat)
+    
+    Ret <- data.frame("Variable"= "Y",
+       "Param" = c("b0","b1","b2","b3"),
+                      "meanVal"= beta.hat,
+                      "in-PI" = coverage,
+                      "relBias" = relbias)
+    
+    rownames(Ret) <- NULL
+    
+    return(Ret)
+    
+}
+
+ImpBD <- vector("list", S)
+ImpAI <- vector("list", S)
+
+
+for (s in 1:S) {
+  X1 <- rnorm(n, 8, 3)
+  X2 <- 10 - 0.5 * X1 + rnorm(n, 0, 3)
+  X3 <- X2^2
+  Y <- 5 + 0.6 * X1 + 0.5 * X2 + 0.3 * X3 + rnorm(n, 0, sqrt(2))
+  
+  data1 <- as.data.frame(cbind(X1, X2, X3, Y))
+  obs_with_na <- sample(x = 1:n, size = n/2, replace = FALSE)
+  data1$X2[obs_with_na] <- NA
+  data1$X3[obs_with_na] <- NA # Wir kennen nicht X3 wenn wir nicht die Daten von X2 haben (also ist notwendig für die Berechnung)
+  
+  imp <- mice(data1[, -which(names(data1) == "X3")], print = FALSE, seed = s, m = 5)
+  com_data1 <- complete(imp, "long", include = TRUE)
+  com_data1$X3 <- with(com_data1, X2^2) # wir ersetzten auch vorhanden werte von X3
+  # nur okay, wegen Impute,than transform
+  imp_data1 <- com_data1
+  model_fit <- with(imp, lm(Y ~ X1 + X2 + I(X2^2)))
+
+  #Kombiniere die Ergebnisse aus den Modellen
+  pooled_results <- pool(model_fit)
+  sum_pool <- summary(pooled_results)
+  
+  #1.) Calculate Mean, CI and Bias of Y variable
+  data1.m <- meanDiag(data1,trueValue = trueVal.Y[1],variable = "Y")
+  imp_data1.m <- meanDiag(imp_data1,trueValue = trueVal.Y[1],variable = "Y")
+  
+  #2.) Calculate beta values, CI and rel Bias 
+  data1.p<- paramDiagsqrt(data1, trueValue = trueVal.Y[-1], alpha = 0.05)      
+  imp_data1.p <- paramDiagsqrt(imp_data1, trueValue = trueVal.Y[-1], alpha = 0.05)
+
+  ImpBD[[s]] <- rbind(data1.m,       # save results for the i-th BD dataset
+                        data1.p)
+
+  ImpAI[[s]] <- rbind(imp_data1.m,      # save results for the i-th SR dataset
+                        imp_data1.p)
+}
+
+ImpBD[[S]]
+
+ImpAI[[S]]
+
+
+
+LongResultBD <- ImpBD %>%
+  bind_rows() %>%
+  mutate(Param = recode(
+    Param,
+    "mu" = "mu",
+    "b0" = "beta0",
+    "b1" = "beta1",
+    "b2" = "beta2",
+    "b3" = "beta3"
+  )) %>%
+  group_by(Param) %>%
+  mutate("Type" = "Before Deletion")
+                
+
+
+LongResultAI <- ImpAI %>%
+  bind_rows() %>%
+  mutate(Param = recode(
+    Param,
+    "mu" = "mu",
+    "b0" = "beta0",
+    "b1" = "beta1",
+    "b2" = "beta2",
+    "b3" = "beta3"
+  )) %>%
+  group_by(Param) %>%
+  mutate("Type" = "Impute, then transform")
+
+CombinedResults <- bind_rows(LongResultBD, LongResultAI)
+SummaryResults <- CombinedResults %>%
+    group_by(Param, Type) %>%
+    summarise(
+        meanValue = mean(meanVal, na.rm = TRUE),
+        meanRelBias = mean(relBias, na.rm = TRUE),
+        coverageRate = mean(in.PI, na.rm = TRUE),
+        .groups = "drop"
+    )
+print(SummaryResults)
+
+
+```
+
+# Chat gpt Idee
+```{r}
+
+set.seed(123) # Seed für Reproduzierbarkeit
+S <- 200 # Anzahl der Simulationen
+n <- 50 # Stichprobengröße
+
+trueVal.Y <- c(26.3, 5, 0.6, 0.5, 0.3)
+
+# Funktionen für Diagnostik
+calc_coverage <- function(value, CI_low, CI_upper) {
+  (CI_low <= value & CI_upper >= value)
+}
+
+calc_rel_bias <- function(value, est) {
+  (est - value) / value
+}
+
+# Optimierte Funktion für Analyse mit Pooling
+analyze_pooled_model <- function(pooled_results, true_values, params) {
+  summary_results <- summary(pooled_results)
+  CI_low <- summary_results$estimate - 1.96 * summary_results$std.error
+  CI_high <- summary_results$estimate + 1.96 * summary_results$std.error
+  coverage <- mapply(calc_coverage, true_values, CI_low, CI_high)
+  rel_bias <- mapply(calc_rel_bias, true_values, summary_results$estimate)
+  
+  data.frame(
+    Param = params,
+    meanVal = summary_results$estimate,
+    in_PI = coverage,
+    relBias = rel_bias
+  )
+}
+
+# Speichere Ergebnisse
+results_list <- vector("list", S)
+
+for (s in 1:S) {
+  X1 <- rnorm(n, 8, 3)
+  X2 <- 10 - 0.5 * X1 + rnorm(n, 0, 3)
+  X3 <- X2^2
+  Y <- 5 + 0.6 * X1 + 0.5 * X2 + 0.3 * X3 + rnorm(n, 0, sqrt(2))
+  
+  data1 <- data.frame(X1, X2, X3, Y)
+  obs_with_na <- sample(1:n, size = n / 2, replace = FALSE)
+  data1$X2[obs_with_na] <- NA
+  data1$X3[obs_with_na] <- NA
+  
+  # Imputation und Transformation
+  imp <- mice(data1[, -which(names(data1) == "X3")], m = 5, seed = s, print = FALSE)
+  completed_data <- complete(imp, "long", include = TRUE)
+  completed_data$X3 <- completed_data$X2^2
+  
+  # Pooled Model
+  model_fit <- with(imp, lm(Y ~ X1 + X2 + I(X2^2)))
+  pooled_results <- pool(model_fit)
+  
+  # Analyse der gepoolten Ergebnisse
+  pooled_diagnostics <- analyze_pooled_model(
+    pooled_results, 
+    true_values = trueVal.Y[-1],
+    params = c("beta0", "beta1", "beta2", "beta3")
+  )
+  
+  # Mittelwert und Konfidenzintervall für Y
+  mean_y <- mean(completed_data$Y, na.rm = TRUE)
+  CI_low <- mean_y - 1.96 * sd(completed_data$Y, na.rm = TRUE) / sqrt(n)
+  CI_high <- mean_y + 1.96 * sd(completed_data$Y, na.rm = TRUE) / sqrt(n)
+  coverage_y <- calc_coverage(trueVal.Y[1], CI_low, CI_high)
+  rel_bias_y <- calc_rel_bias(trueVal.Y[1], mean_y)
+  
+  results_list[[s]] <- rbind(
+    data.frame(Param = "mu", meanVal = mean_y, in_PI = coverage_y, relBias = rel_bias_y),
+    pooled_diagnostics
+  )
+}
+
+# Ergebnisse zusammenführen
+results_df <- bind_rows(results_list)
+
+# Zusammenfassung der Ergebnisse
+summary_results <- results_df %>%
+  group_by(Param) %>%
+  summarise(
+    meanValue = mean(meanVal, na.rm = TRUE),
+    meanRelBias = mean(relBias, na.rm = TRUE),
+    coverageRate = mean(in_PI, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+print(summary_results)
+
+```
