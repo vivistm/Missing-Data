@@ -10,7 +10,7 @@ Aktuellste Gedanken/Ideen:
 - daher siehe Code in Simulationsstudie vor allem Combining Rules beachten (keine Ahung was da abgeht)
 - Pooling der Ergebnisse (könnte einfach besser sein, ist aber schon ganz okay)
 - ich filtere ja nichtmehr M, wie wirkt sich das aus? Also in der Auswertung
-
+- bei transform and than impute analysiere ich dann auch nicht X2^2 sondern X3 oder?
 
 Gelöste Probleme:
 - wo X2 na hat auch X3 na
@@ -74,7 +74,7 @@ X1 <- rnorm(n, 8, 3)
 # 4. Kombiniere die Ergebnisse aus den Modellen
 pooled_results <- pool(model_fit)
   #imp_data1 <- com_data1[com_data1$.imp == M, ] das ist dumm
-  
+  summary(pooled_results)
   #1.) Calculate Mean, CI and Bias of Y variable
   data1.m <- meanDiag(data1,trueValue = trueVal.Y[1],variable = "Y")
   imp_data1.m <- meanDiag(imp_data1,trueValue = trueVal.Y[1],variable = "Y")
