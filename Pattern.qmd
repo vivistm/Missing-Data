@@ -1,0 +1,236 @@
+---
+title: "Patterns"
+format: html
+editor: visual
+---
+
+# Kovariate
+
+```{r}
+#| echo: false
+pacman::p_load("VIM","rgl","MASS","tidyverse","mice","MASS")
+```
+
+
+- Gedanken:
+X1 missingness mechanismus linear regression
+X2 keine missings
+X3 MCAR
+X4 MAR von X2
+X1^2 missing hundert prozent von X1
+Y von X1,X2,X3
+
+# Quadratisch
+```{r}
+set.seed(12345)
+
+# 4 variables: 
+p <- 4  
+# 3000 observations:
+n <- 3000
+
+# draw expected values:
+mu <- (runif(p,-1,5))
+mu
+
+A <- matrix(rnorm(p^2), p, p)  # Zufällige Matrix
+A <- t(A) %*% A             # Positive definite Matrix
+V <- cov2cor(A)           # Korrelationmatrix
+
+# Datenframe
+x_df_org <- mvrnorm(n, mu, V) %>% data.frame()
+names(x_df_org) <- paste0("x_", 1:4)
+x_df_org$x1_squared <- x_df_org[, 1]^2 # transformiert
+mu[p+1] <- mu[1]^2
+
+true_beta <- c(1, 1.5, -0.8, 0.5, 0.2,0.4)  # c(intercept, b1,b2,b3,b4,b5(beta für interaktion))
+E_Y <- mu%*%true_beta[2:(p+2)]+true_beta[1] # Analytische Erwartungswerte
+
+# Empirische Y Werte
+x_matrix_org <- as.matrix(x_df_org)
+X_full <- cbind(1, x_matrix_org)  # Intercept hinzufügen
+
+Y <- X_full %*% true_beta + rnorm(n,0,1)
+data_sqrt<- cbind(x_df_org,Y)
+
+# Zusammenfassend
+true_beta
+mu
+E_Y
+data_sqrt
+```
+# Missing at random mit Lineare Regression
+
+```{r}
+# Missingness bei Y
+miss_obs_y <- 0.5 + 2 * data_sqrt$x_1 - 0.7 * data_sqrt$x_4 + 0.3*data_sqrt$x_2 + rnorm(n, 0, 3)
+mis_mar_py <- miss_obs_y < quantile(miss_obs_y, 0.3)
+data_sqrt$Y[mis_mar_py] <- NA
+
+# Berechnung des fehlenden Mechanismus (MAR)
+miss_obs_x1 <- 0.5 + 2 * data_sqrt$x_2 - 0.7 * data_sqrt$x_3 + rnorm(n, 0, 3)
+
+# Logischer Vektor für fehlende Werte
+mis_mar_p <- miss_obs_x1 < quantile(miss_obs_x1, 0.3)
+
+# Zuweisung von NA in x_1
+data_sqrt$x_1[mis_mar_p] <- NA
+
+# Missingness bei x_3 (MCAR)
+data_sqrt$x_3[sample(x = 1:n, size = n*0.2, replace = FALSE)] <- NA
+
+# Missingess bei x_4(MCAR)
+miss_obs_x4 <- 0.1 + 4 * data_sqrt$x_2 + rnorm(n, 0, 2)
+mis_mar_p4 <- miss_obs_x4 < quantile(miss_obs_x4, 0.17)
+data_sqrt$x_4[mis_mar_p4] <- NA
+
+# Missingness bei x_1 squard durch NAs die Missing in x1 sind
+data_sqrt$x1_squared <- data_sqrt$x_1^2
+
+
+VIM::aggr(data_sqrt)
+md.pattern(data_sqrt)
+
+```
+
+# Interaktion (X1*X3)
+```{r}
+set.seed(12345)
+
+# 4 variables: 
+p <- 4  
+# 3000 observations:
+n <- 3000
+
+# draw expected values:
+mu <- (runif(p,-1,5))
+mu
+
+A <- matrix(rnorm(p^2), p, p)  # Zufällige Matrix
+A <- t(A) %*% A             # Positive definite Matrix
+V <- cov2cor(A)           # Korrelationmatrix
+
+# Datenframe
+x_df_org <- mvrnorm(n, mu, V) %>% data.frame()
+names(x_df_org) <- paste0("x_", 1:4)
+x_df_org$interaktion <- x_df_org[, 1]*x_df_org[,3] # transformiert
+mu[p+1] <- mu[1]*mu[3]
+
+true_beta <- c(1, 1.5, -0.8, 0.5, 0.2,0.4)  # c(intercept, b1,b2,b3,b4,b5(beta für interaktion))
+E_Y <- mu%*%true_beta[2:(p+2)]+true_beta[1] # Analytische Erwartungswerte
+
+# Empirische Y Werte
+x_matrix_org <- as.matrix(x_df_org)
+X_full <- cbind(1, x_matrix_org)  # Intercept hinzufügen
+
+Y <- X_full %*% true_beta + rnorm(n,0,1)
+data_inter<- cbind(x_df_org,Y)
+
+# Zusammenfassend
+true_beta
+mu
+E_Y
+data_inter
+```
+# Missing Interaktion (Lineare Regression)
+```{r}
+# Missingness bei Y
+miss_obs_y <- 0.5 + 2 * data_inter$x_1 - 0.7 * data_inter$x_4 + 0.3*data_inter$x_2 + rnorm(n, 0, 3)
+mis_mar_py <- miss_obs_y < quantile(miss_obs_y, 0.3)
+data_inter$Y[mis_mar_py] <- NA
+
+# Berechnung des fehlenden Mechanismus (MAR)
+miss_obs_x1 <- 0.5 + 2 * data_inter$x_2 - 0.7 * data_inter$x_3 + rnorm(n, 0, 3)
+
+# Logischer Vektor für fehlende Werte
+mis_mar_p <- miss_obs_x1 < quantile(miss_obs_x1, 0.3)
+
+# Zuweisung von NA in x_1
+data_inter$x_1[mis_mar_p] <- NA
+
+# Missingness bei x_3 (MCAR)
+data_inter$x_3[sample(x = 1:n, size = n*0.2, replace = FALSE)] <- NA
+
+# Missingess bei x_4(MCAR)
+miss_obs_x4 <- 0.1 + 4 * data_inter$x_2 + rnorm(n, 0, 2)
+mis_mar_p4 <- miss_obs_x4 < quantile(miss_obs_x4, 0.17)
+data_inter$x_4[mis_mar_p4] <- NA
+
+# Missingness bei x_1 squard durch NAs die Missing in x1 sind
+data_inter$interaktion <- data_inter$x_1*data_inter$x_3
+
+
+VIM::aggr(data_inter)
+md.pattern(data_inter)
+```
+# Sinus
+
+```{r}
+set.seed(12345)
+
+# 4 variables: 
+p <- 4  
+# 3000 observations:
+n <- 3000
+
+# draw expected values:
+mu <- (runif(p,-1,5))
+mu
+
+A <- matrix(rnorm(p^2), p, p)  # Zufällige Matrix
+A <- t(A) %*% A             # Positive definite Matrix
+V <- cov2cor(A)           # Korrelationmatrix
+
+# Datenframe
+x_df_org <- mvrnorm(n, mu, V) %>% data.frame()
+names(x_df_org) <- paste0("x_", 1:4)
+x_df_org$sinus <- sin(x_df_org[, 1]) # transformiert
+mu[p+1] <- mu[1]*mu[3]
+
+true_beta <- c(1, 1.5, -0.8, 0.5, 0.2,0.4)  # c(intercept, b1,b2,b3,b4,b5(beta für interaktion))
+E_Y <- mu%*%true_beta[2:(p+2)]+true_beta[1] # Analytische Erwartungswerte
+
+# Empirische Y Werte
+x_matrix_org <- as.matrix(x_df_org)
+X_full <- cbind(1, x_matrix_org)  # Intercept hinzufügen
+
+Y <- X_full %*% true_beta + rnorm(n,0,1)
+data_sinus<- cbind(x_df_org,Y)
+
+# Zusammenfassend
+true_beta
+mu
+E_Y
+data_sinus
+```
+# Missing Sinus
+```{r}
+
+# Missingness bei Y
+miss_obs_y <- 0.5 + 2 * data_sinus$x_1 - 0.7 * data_sinus$x_4 + 0.3*data_sinus$x_2 + rnorm(n, 0, 3)
+mis_mar_py <- miss_obs_y < quantile(miss_obs_y, 0.3)
+data_sinus$Y[mis_mar_py] <- NA
+
+# Berechnung des fehlenden Mechanismus (MAR)
+miss_obs_x1 <- 0.5 + 2 * data_sinus$x_2 - 0.7 * data_sinus$x_3 + rnorm(n, 0, 3)
+
+# Logischer Vektor für fehlende Werte
+mis_mar_p <- miss_obs_x1 < quantile(miss_obs_x1, 0.3)
+
+# Zuweisung von NA in x_1
+data_sinus$x_1[mis_mar_p] <- NA
+data_sinus$sinus[mis_mar_p] <- NA
+# Missingness bei x_3 (MCAR)
+data_sinus$x_3[sample(x = 1:n, size = n*0.2, replace = FALSE)] <- NA
+
+# Missingess bei x_4(MCAR)
+miss_obs_x4 <- 0.1 + 4 * data_sinus$x_2 + rnorm(n, 0, 2)
+mis_mar_p4 <- miss_obs_x4 < quantile(miss_obs_x4, 0.17)
+data_sinus$x_4[mis_mar_p4] <- NA
+
+
+
+VIM::aggr(data_sinus)
+md.pattern(data_sinus)
+```
+```
