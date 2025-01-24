@@ -9,8 +9,8 @@ library(mice)
 # TODO:
 # Z transformation
 # andere imputation method
-# wie speichern wie die Ergebnisse? -> Mehrere Durchläufe
 # Methoden anschauen
+# RF implementieren
 
 # methods_names <- c("pmm_imp_first", "pmm_trans_first", "pmm_3rd_method",
 #                   "reg_imp_first", "reg_trans_first", "reg_3rd_method")
@@ -32,16 +32,14 @@ results_trans_first <- list()
 
 set.seed(123)
 n <- 200
-iterations <- 10
+iterations <- 10 #1000
 percent_missing <- 0.3
-n_imp <- 5
+n_imp <- 5 #Hippel sagt 40 ?
 
 for (i in 1:iterations) {
   X1 <- rnorm(n, 10, 3)
   X2 <- rnorm(n, 200, 50)
   X3 <- rnorm(n, 100, 30)
-
-  #TODO checken, ob die autokorreliert sind
 
   Y <-
     20 + 1.2 * X1 + 2.4 * X2 + 0.7 * X3 + 0.5 * X1 ^ 2 + rnorm(n, 0, 5)
@@ -98,17 +96,16 @@ for (i in 1:iterations) {
 
 all_average_results <- list()
 
-
 for (method_name in names(results_of_all_methods)) {
   method <- results_of_all_methods[[method_name]]
   avg_results <- data.frame(estimate = numeric(0), bias = numeric(0), coverage = numeric(0))
 
   for (covariate in row.names(method[[1]])) {
-    coefficient <- mean(sapply(results_imp_first, function(df)
+    coefficient <- mean(sapply(method, function(df)
         df[covariate, "estimate"]))
-    bias <- mean(sapply(results_imp_first, function(df)
+    bias <- mean(sapply(method, function(df)
         df[covariate, "bias"]))
-    coverage <- mean(sapply(results_imp_first, function(df)
+    coverage <- mean(sapply(method, function(df)
         df[covariate, "cov"]))
 
     # Create a new data frame for the row to bind
@@ -122,6 +119,28 @@ for (method_name in names(results_of_all_methods)) {
   }
   all_average_results[[method_name]] <- avg_results
 }
+
+#Zusammengefasste Ergebnisse
+
+covariates_names <- c("Intercept", "X1", "X2", "X3", "X^2")
+
+# Alle Koeffizienten gemeinsam ausgeben
+all_coefficients <- sapply(all_average_results, function(df)
+  df[,"estimate"])
+rownames(all_coefficients) <- covariates_names
+
+# Alle Biases ausgeben
+all_biases <- sapply(all_average_results, function(df)
+  df[,"bias"])
+rownames(all_biases) <- covariates_names
+
+
+# Alle Coverages ausgeben
+all_coverages <- sapply(all_average_results, function(df)
+  df[,"coverage"])
+rownames(all_coverages) <- covariates_names
+
+
 
 #TODO: vlt umbenennen, da nicht nur Metriken berechnet, sondern auch Coefficients abgespeichert werden. vlt create_results oder so?
 calculate_metrics <-
