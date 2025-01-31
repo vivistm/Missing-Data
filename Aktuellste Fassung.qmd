@@ -4,24 +4,24 @@ author: "Vivian"
 format: html
 editor: visual
 ---
+
 Aktuellste Gedanken/Ideen:
 
-- Coverage funktioniert gut, Bias blicke ich noch nicht so durch (müsste ich auch berechnet haben nur wo ist die Auswertung)
-- daher siehe Code in Simulationsstudie vor allem Combining Rules beachten (keine Ahung was da abgeht)
-- Pooling der Ergebnisse (könnte einfach besser sein, ist aber schon ganz okay)
-- ich filtere ja nichtmehr M, wie wirkt sich das aus? Also in der Auswertung
-- bei transform and than impute analysiere ich dann auch nicht X2^2 sondern X3 oder?
+-   Coverage funktioniert gut, Bias blicke ich noch nicht so durch (müsste ich auch berechnet haben nur wo ist die Auswertung)
+-   daher siehe Code in Simulationsstudie vor allem Combining Rules beachten (keine Ahung was da abgeht)
+-   Pooling der Ergebnisse (könnte einfach besser sein, ist aber schon ganz okay)
+-   ich filtere ja nichtmehr M, wie wirkt sich das aus? Also in der Auswertung
+-   bei transform and than impute analysiere ich dann auch nicht X2\^2 sondern X3 oder?
 
-Gelöste Probleme:
-- wo X2 na hat auch X3 na
-- teilweise sqrt aber auch bei transform than impute?
-
+Gelöste Probleme: - wo X2 na hat auch X3 na - teilweise sqrt aber auch bei transform than impute?
 
 ```{r}
 #| echo: false
 pacman::p_load("VIM","rgl","MASS","tidyverse","mice")
 ```
+
 # Patterns
+
 ```{r}
 set.seed(1)
   
@@ -91,7 +91,9 @@ pooled_results <- pool(model_fit)
 ```
 
 # Impute, then transform
-- Y Analysiert 
+
+-   Y Analysiert
+
 ```{r}
 
 set.seed(123) # Seed für Reproduzierbarkeit
@@ -253,8 +255,10 @@ print(SummaryResults)
 ```
 
 # Transform, then impute
-- noch nicht richtig
-- Y Analysiert 
+
+-   noch nicht richtig
+-   Y Analysiert
+
 ```{r}
 
 set.seed(123) # Seed für Reproduzierbarkeit
@@ -443,6 +447,7 @@ SummaryResults <- CombinedResults %>%
 ```
 
 # Versuch: Pool
+
 ```{r}
 
 set.seed(123) # Seed für Reproduzierbarkeit
@@ -608,6 +613,7 @@ print(SummaryResults)
 ```
 
 # Chat gpt Idee
+
 ```{r}
 
 set.seed(123) # Seed für Reproduzierbarkeit

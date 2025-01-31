@@ -1,29 +1,21 @@
 ---
-title: "Einfache Patterns"
+title: "Everything"
 format: html
 editor: visual
 ---
 
-# Patterns erzeugt
-
--   Outline hilfreich
-
-Daten, die erzeugt werden
-- data_sqrt_m(c)ar 
-- data_inter_m(c)ar 
-- data_sinus_m(c)ar
-
-# Packages laden
 
 ```{r}
 #| echo: false
 pacman::p_load("VIM","rgl","MASS","tidyverse","mice","MASS")
 ```
 
+-   Gedanken: X1 missingness mechanismus linear regression X2 keine missings X3 MCAR X4 MAR von X2 X1\^2 missing hundert prozent von X1 Y von X1,X2,X3
+
 # Quadratisch
 
 ```{r}
-set.seed(42)
+set.seed(12345)
 
 # 4 variables: 
 p <- 4  
@@ -61,22 +53,7 @@ E_Y
 data_sqrt
 ```
 
-## MCAR
-
-```{r}
-data_sqrt_mcar <- data_sqrt
-
-data_sqrt_mcar$x_1[sample(x = 1:n, size = n*0.3, replace = FALSE)] <- NA
-
-# Missingness bei x_1 squard durch NAs die Missing in x1 sind
-data_sqrt_mcar$x1_squared <- data_sqrt_mcar$x_1^2
-
-VIM::aggr(data_sqrt_mcar)
-```
-
-## MAR
-
--   Lineare REgression
+# MAR quadratisch
 
 ```{r}
 data_sqrt_mar <- data_sqrt
@@ -136,17 +113,7 @@ E_Y
 data_inter
 ```
 
-## MCAR
-
-```{r}
-data_inter_mcar <- data_inter
-data_inter_mcar$x_1[sample(x = 1:n, size = n*0.3, replace = FALSE)] <- NA
-data_inter_mcar$interaktion <- data_inter_mcar$x_1*data_inter_mar$x_3
-
-```
-
-## MAR
-
+# MAR Interaktion (Lineare Regression)
 ```{r}
 data_inter_mar <- data_inter
 # Berechnung des fehlenden Mechanismus (MAR)
@@ -163,6 +130,7 @@ data_inter_mar$interaktion <- data_inter_mar$x_1*data_inter_mar$x_3
 
 VIM::aggr(data_inter_mar)
 ```
+
 
 # Sinus
 
@@ -205,18 +173,10 @@ E_Y
 data_sinus
 ```
 
-##MCAR
+# MAR Sinus
 
 ```{r}
-data_sinus_mcar <- data_sinus
-pos_na <- sample(x = 1:n, size = n*0.3, replace = FALSE)
-data_sinus_mcar$x_1[pos_na] <- NA
-data_sinus_mcar$sinus[pos_na] <- NA
-```
 
-##MAR
-
-```{r}
 data_sinus_mar <- data_sinus
 # Berechnung des fehlenden Mechanismus (MAR)
 miss_obs_x1 <- 0.5 + 2 * data_sinus_mar$x_2 - 0.7 * data_sinus_mar$x_3 + rnorm(n, 0, 3)
@@ -231,3 +191,132 @@ data_sinus_mar$sinus[mis_mar_p] <- NA
 VIM::aggr(data_sinus_mar)
 
 ```
+
+# Function for calculating bias and coverage
+
+```{r}
+calculate_metrics <-
+  function(coefficients, true_beta, ci_value = 0.95) {
+    bias <- true_beta - coefficients$estimate
+
+    ci_lower <- coefficients$estimate - ci_value / 2 * coeff_imp_first$std.error
+    ci_upper <- coefficients$estimate + ci_value / 2 * coeff_imp_first$std.error
+    cov <- ci_lower <= true_beta & true_beta <= ci_upper
+
+    metrics <-
+      cbind(coefficients, bias, cov) 
+    # man könnte überlegen, auch noch die CI grenzen zu speichern
+}
+```
+
+# Imputate missing data (Squared)
+
+```{r}
+results_of_all_methods <- list (
+  "pmm_imp_first" = list(),
+  "pmm_trans_first" = list()#,
+  #"pmm_3rd_method" = list(),
+  #"reg_imp_first" = list(),
+  #"reg_trans_first" = list(),
+  #"reg_3rd_method" = list()
+)
+
+results_imp_first <- list()
+results_trans_first <- list()
+
+iterations <- 10 #1000
+n_imp <- 5 #Hippel sagt 40 ?
+
+data <- data_sqrt_mar
+
+for (i in 1:iterations) {
+  #Impute, then transform
+  
+  ImpData <- mice(data)
+
+  model_impute_first <- with(ImpData, lm(Y ~ x_1 + x_2 + x_3 + x_4 + I(x_1 ^ 2)))
+  pooled_imp_first <- pool(model_impute_first)
+  coeff_imp_first <- summary(pooled_imp_first)
+
+  results_of_all_methods[["pmm_imp_first"]][[i]] <-
+    calculate_metrics(coeff_imp_first, true_beta) #Frage: Reicht es diese Werte abzuspeichern oder brauchen wir noch mehr?
+
+  #results <- list(coeffcients = coeff_imp_first, bias = bias_impute_first, coverage = cov_imp_first)
+
+
+  #Transform then impute
+
+  data_with_transformed_variable <-
+    cbind(data, x1_squared <- data$x_1 ^ 2)
+
+  ImpDataTransFirst <- mice(data_with_transformed_variable)
+
+  model_trans_first <-
+    with(ImpData, lm(Y ~ x_1 + x_2 + x_3 + x_4 + x1_squared))
+  pooled_trans_first <- pool(model_trans_first)
+  coeff_trans_first <- summary(pooled_trans_first)
+
+
+  results_of_all_methods[["pmm_trans_first"]][[i]] <-
+    calculate_metrics(coeff_trans_first, true_beta)
+
+}
+
+```
+
+# Calculate averages over all iterations of one method
+
+```{r}
+
+all_average_results <- list()
+
+for (method_name in names(results_of_all_methods)) {
+  method <- results_of_all_methods[[method_name]]
+  avg_results <- data.frame(estimate = numeric(0), bias = numeric(0), coverage = numeric(0))
+
+  for (covariate in row.names(method[[1]])) {
+    coefficient <- mean(sapply(method, function(df)
+        df[covariate, "estimate"]))
+    bias <- mean(sapply(method, function(df)
+        df[covariate, "bias"]))
+    coverage <- mean(sapply(method, function(df)
+        df[covariate, "cov"]))
+
+    # Create a new data frame for the row to bind
+    new_row <- data.frame(estimate = coefficient, bias = bias, coverage = coverage)
+
+    # Bind the row while preserving column names
+    avg_results <- rbind(avg_results, new_row)
+
+    # Assign the row name
+    row.names(avg_results)[nrow(avg_results)] <- covariate
+  }
+  all_average_results[[method_name]] <- avg_results
+}
+
+```
+
+# Zusammengefasste Ergebnisse
+
+```{r}
+covariates_names <- c("Intercept", "X1", "X2", "X3", "X4", "X^2")
+
+# Alle Koeffizienten gemeinsam ausgeben
+all_coefficients <- sapply(all_average_results, function(df)
+  df[,"estimate"])
+rownames(all_coefficients) <- covariates_names
+
+# Alle Biases ausgeben
+all_biases <- sapply(all_average_results, function(df)
+  df[,"bias"])
+rownames(all_biases) <- covariates_names
+
+
+# Alle Coverages ausgeben
+all_coverages <- sapply(all_average_results, function(df)
+  df[,"coverage"])
+rownames(all_coverages) <- covariates_names
+
+```
+
+\`\`\`
