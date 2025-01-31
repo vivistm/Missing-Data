@@ -1,22 +1,28 @@
 ---
-title: "Patterns"
+title: "Einfache Patterns"
 format: html
 editor: visual
 ---
+# Patterns erzeugt
+- Outline hilfreich
 
-# Kovariate
+Daten, die erzeugt werden
+- data_sqrt_m(c)ar
+- data_inter_m(c)ar
+- data_sinus_m(c)ar
+
+
+# Packages laden
 
 ```{r}
 #| echo: false
 pacman::p_load("VIM","rgl","MASS","tidyverse","mice","MASS")
 ```
 
--   Gedanken: X1 missingness mechanismus linear regression X2 keine missings X3 MCAR X4 MAR von X2 X1\^2 missing hundert prozent von X1 Y von X1,X2,X3
-
 # Quadratisch
 
 ```{r}
-set.seed(12345)
+set.seed(42)
 
 # 4 variables: 
 p <- 4  
@@ -53,39 +59,36 @@ mu
 E_Y
 data_sqrt
 ```
+## MCAR
+```{r}
+data_sqrt_mcar <- data_sqrt
 
-# Missing at random mit Lineare Regression
+data_sqrt_mcar$x_1[sample(x = 1:n, size = n*0.3, replace = FALSE)] <- NA
+
+# Missingness bei x_1 squard durch NAs die Missing in x1 sind
+data_sqrt_mcar$x1_squared <- data_sqrt_mcar$x_1^2
+
+VIM::aggr(data_sqrt_mcar)
+```
+
+## MAR
+- Lineare REgression
 
 ```{r}
-# Missingness bei Y
-miss_obs_y <- 0.5 + 2 * data_sqrt$x_1 - 0.7 * data_sqrt$x_4 + 0.3*data_sqrt$x_2 + rnorm(n, 0, 3)
-mis_mar_py <- miss_obs_y < quantile(miss_obs_y, 0.3)
-data_sqrt$Y[mis_mar_py] <- NA
-
+data_sqrt_mar <- data_sqrt
 # Berechnung des fehlenden Mechanismus (MAR)
-miss_obs_x1 <- 0.5 + 2 * data_sqrt$x_2 - 0.7 * data_sqrt$x_3 + rnorm(n, 0, 3)
+miss_obs_x1 <- 0.5 + 2 * data_sqrt_mar$x_2 - 0.7 * data_sqrt_mar$x_3 + rnorm(n, 0, 3)
 
 # Logischer Vektor für fehlende Werte
 mis_mar_p <- miss_obs_x1 < quantile(miss_obs_x1, 0.3)
 
 # Zuweisung von NA in x_1
-data_sqrt$x_1[mis_mar_p] <- NA
-
-# Missingness bei x_3 (MCAR)
-data_sqrt$x_3[sample(x = 1:n, size = n*0.2, replace = FALSE)] <- NA
-
-# Missingess bei x_4(MAR)
-miss_obs_x4 <- 0.1 + 4 * data_sqrt$x_2 + rnorm(n, 0, 2)
-mis_mar_p4 <- miss_obs_x4 < quantile(miss_obs_x4, 0.17)
-data_sqrt$x_4[mis_mar_p4] <- NA
+data_sqrt_mar$x_1[mis_mar_p] <- NA
 
 # Missingness bei x_1 squard durch NAs die Missing in x1 sind
-data_sqrt$x1_squared <- data_sqrt$x_1^2
+data_sqrt_mar$x1_squared <- data_sqrt_mar$x_1^2
 
-
-VIM::aggr(data_sqrt)
-md.pattern(data_sqrt)
-
+VIM::aggr(data_sqrt_mar)
 ```
 
 # Interaktion (X1\*X3)
@@ -128,17 +131,21 @@ mu
 E_Y
 data_inter
 ```
-
-# Missing Interaktion (Lineare Regression)
+## MCAR
 
 ```{r}
-# Missingness bei Y
-miss_obs_y <- 0.5 + 2 * data_inter$x_1 - 0.7 * data_inter$x_4 + 0.3*data_inter$x_2 + rnorm(n, 0, 3)
-mis_mar_py <- miss_obs_y < quantile(miss_obs_y, 0.3)
-data_inter$Y[mis_mar_py] <- NA
+data_inter_mcar <- data_inter
+data_inter_mcar$x_1[sample(x = 1:n, size = n*0.3, replace = FALSE)] <- NA
+data_inter_mcar$interaktion <- data_inter_mcar$x_1*data_inter_mar$x_3
 
+```
+
+## MAR
+
+```{r}
+data_inter_mar <- data_inter
 # Berechnung des fehlenden Mechanismus (MAR)
-miss_obs_x1 <- 0.5 + 2 * data_inter$x_2 - 0.7 * data_inter$x_3 + rnorm(n, 0, 3)
+miss_obs_x1 <- 0.5 + 2 * data_inter_mar$x_2 - 0.7 * data_inter_mar$x_3 + rnorm(n, 0, 3)
 
 # Logischer Vektor für fehlende Werte
 mis_mar_p <- miss_obs_x1 < quantile(miss_obs_x1, 0.3)
@@ -146,21 +153,13 @@ mis_mar_p <- miss_obs_x1 < quantile(miss_obs_x1, 0.3)
 # Zuweisung von NA in x_1
 data_inter$x_1[mis_mar_p] <- NA
 
-# Missingness bei x_3 (MCAR)
-data_inter$x_3[sample(x = 1:n, size = n*0.2, replace = FALSE)] <- NA
-
-# Missingess bei x_4(MAR)
-miss_obs_x4 <- 0.1 + 4 * data_inter$x_2 + rnorm(n, 0, 2)
-mis_mar_p4 <- miss_obs_x4 < quantile(miss_obs_x4, 0.17)
-data_inter$x_4[mis_mar_p4] <- NA
-
 # Missingness bei x_1 squard durch NAs die Missing in x1 sind
-data_inter$interaktion <- data_inter$x_1*data_inter$x_3
+data_inter_mar$interaktion <- data_inter_mar$x_1*data_inter_mar$x_3
+
+VIM::aggr(data_inter_mar)
+``` 
 
 
-VIM::aggr(data_inter)
-md.pattern(data_inter)
-```
 
 # Sinus
 
@@ -202,37 +201,31 @@ mu
 E_Y
 data_sinus
 ```
+##MCAR
+```{r}
+data_sinus_mcar <- data_sinus
+pos_na <- sample(x = 1:n, size = n*0.3, replace = FALSE)
+data_sinus_mcar$x_1[pos_na] <- NA
+data_sinus_mcar$sinus[pos_na] <- NA
+```
 
-# Missing Sinus
+
+##MAR
 
 ```{r}
-
-# Missingness bei Y
-miss_obs_y <- 0.5 + 2 * data_sinus$x_1 - 0.7 * data_sinus$x_4 + 0.3*data_sinus$x_2 + rnorm(n, 0, 3)
-mis_mar_py <- miss_obs_y < quantile(miss_obs_y, 0.3)
-data_sinus$Y[mis_mar_py] <- NA
-
+data_sinus_mar <- data_sinus
 # Berechnung des fehlenden Mechanismus (MAR)
-miss_obs_x1 <- 0.5 + 2 * data_sinus$x_2 - 0.7 * data_sinus$x_3 + rnorm(n, 0, 3)
+miss_obs_x1 <- 0.5 + 2 * data_sinus_mar$x_2 - 0.7 * data_sinus_mar$x_3 + rnorm(n, 0, 3)
 
 # Logischer Vektor für fehlende Werte
 mis_mar_p <- miss_obs_x1 < quantile(miss_obs_x1, 0.3)
 
 # Zuweisung von NA in x_1
-data_sinus$x_1[mis_mar_p] <- NA
-data_sinus$sinus[mis_mar_p] <- NA
-# Missingness bei x_3 (MCAR)
-data_sinus$x_3[sample(x = 1:n, size = n*0.2, replace = FALSE)] <- NA
+data_sinus_mar$x_1[mis_mar_p] <- NA
+data_sinus_mar$sinus[mis_mar_p] <- NA
 
-# Missingess bei x_4(MAR)
-miss_obs_x4 <- 0.1 + 4 * data_sinus$x_2 + rnorm(n, 0, 2)
-mis_mar_p4 <- miss_obs_x4 < quantile(miss_obs_x4, 0.17)
-data_sinus$x_4[mis_mar_p4] <- NA
+VIM::aggr(data_sinus_mar)
 
-
-
-VIM::aggr(data_sinus)
-md.pattern(data_sinus)
 ```
 
-\`\`\`
+
