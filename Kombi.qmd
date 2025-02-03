@@ -70,6 +70,21 @@ data_sqrt_mar$x_1[mis_mar_p] <- NA
 data_sqrt_mar$x1_squared <- data_sqrt_mar$x_1^2
 
 VIM::aggr(data_sqrt_mar)
+
+
+ini <- mice(data_sqrt_mar,maxit = 0)
+meth<- ini$method
+meth["x_1"] <- "quadratic"
+meth["x1_squared"] <- "quadratic"
+pred <- ini$pred
+pred[, "x1_squared"] <- 0
+
+ImpData <- mice(data_sqrt_mar,method = "cart",pred = pred,quad.outcome ="Y")
+ImpData
+model_poly_com <- with(ImpData, lm(Y ~ x_1 + x_2 + x_3 + x_4 + x1_squared))
+pooled_poly_com <- pool(model_poly_com)
+coeff_poly_com <- summary(pooled_poly_com)
+
 ```
 
 # Interaktion (X1\*X3)
@@ -154,7 +169,7 @@ V <- cov2cor(A)           # Korrelationmatrix
 x_df_org <- mvrnorm(n, mu, V) %>% data.frame()
 names(x_df_org) <- paste0("x_", 1:4)
 x_df_org$sinus <- sin(x_df_org[, 1]) # transformiert
-mu[p+1] <- mu[1]*mu[3]
+mu[p+1] <- sin(mu[1])
 
 true_beta <- c(1, 1.5, -0.8, 0.5, 0.2,0.4)  # c(intercept, b1,b2,b3,b4,b5(beta für interaktion))
 E_Y <- mu%*%true_beta[2:(p+2)]+true_beta[1] # Analytische Erwartungswerte
@@ -231,16 +246,11 @@ data <- data_sqrt_mar
 
 for (i in 1:iterations) {
   #Impute, then transform
-  
-  # ImpData <- mice(data)
-  # 
-  # model_impute_first <- with(ImpData, lm(Y ~ x_1 + x_2 + x_3 + x_4 + I(x_1 ^ 2)))
-  
-### Idee:  
-    ImpData <- mice(data[, -which(names(data) == "x1_squared")], print = FALSE, seed = i, m = n_imp)
-  com_data <- complete(ImpData, "long", include = TRUE)
-  com_data$x1_squared <- with(com_data, x_1^2) # wir ersetzten auch vorhanden werte von X3  nur okay, wegen Impute,than transform
-  model_impute_first <- com_data
+
+  #ImpData <- mice(data) # in den Daten ist die Transformierte Variable
+  ImpData <- mice(data[, -which(names(data) == "x1_squared")], seed = i, m = n_imp)
+
+  model_impute_first <- with(ImpData, lm(Y ~ x_1 + x_2 + x_3 + x_4 + I(x_1 ^ 2)))
 
   
   pooled_imp_first <- pool(model_impute_first)
@@ -254,24 +264,20 @@ for (i in 1:iterations) {
 
   #Transform then impute
 
-  data_with_transformed_variable <-
-    cbind(data, x1_squared <- data$x_1 ^ 2)
+  #data_with_transformed_variable <-
+  #  cbind(data, x1_squared <- data$x_1 ^ 2)
 
-  ImpDataTransFirst <- mice(data_with_transformed_variable)
-  
-  
+  #ImpDataTransFirst <- mice(data)
+
+
   ### Idee:
   pred <- make.predictorMatrix(data)
-  pred["x_1", "x1_squared"] <- 0   
+  pred["x_1", "x1_squared"] <- 0
   pred["x1_squared", "x_1"] <- 0
-  
-  ImpData <- mice(data,pred = pred, print = FALSE, seed = i, m = n_imp)
-  com_data <- complete(ImpData, "long", include = TRUE)
-  imp_data <- com_data1
-  
-  
 
-  ## hier wieder normal
+  ImpDataTransFirst <- mice(data,pred = pred, print = FALSE, seed = i, m = n_imp)
+
+
   model_trans_first <-
     with(ImpData, lm(Y ~ x_1 + x_2 + x_3 + x_4 + x1_squared))
   pooled_trans_first <- pool(model_trans_first)

@@ -186,7 +186,7 @@ V <- cov2cor(A)           # Korrelationmatrix
 x_df_org <- mvrnorm(n, mu, V) %>% data.frame()
 names(x_df_org) <- paste0("x_", 1:4)
 x_df_org$sinus <- sin(x_df_org[, 1]) # transformiert
-mu[p+1] <- mu[1]*mu[3]
+mu[p+1] <- sin(mu[1])
 
 true_beta <- c(1, 1.5, -0.8, 0.5, 0.2,0.4)  # c(intercept, b1,b2,b3,b4,b5(beta für interaktion))
 E_Y <- mu%*%true_beta[2:(p+2)]+true_beta[1] # Analytische Erwartungswerte
