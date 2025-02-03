@@ -232,9 +232,17 @@ data <- data_sqrt_mar
 for (i in 1:iterations) {
   #Impute, then transform
   
-  ImpData <- mice(data)
+  # ImpData <- mice(data)
+  # 
+  # model_impute_first <- with(ImpData, lm(Y ~ x_1 + x_2 + x_3 + x_4 + I(x_1 ^ 2)))
+  
+### Idee:  
+    ImpData <- mice(data[, -which(names(data) == "x1_squared")], print = FALSE, seed = i, m = n_imp)
+  com_data <- complete(ImpData, "long", include = TRUE)
+  com_data$x1_squared <- with(com_data, x_1^2) # wir ersetzten auch vorhanden werte von X3  nur okay, wegen Impute,than transform
+  model_impute_first <- com_data
 
-  model_impute_first <- with(ImpData, lm(Y ~ x_1 + x_2 + x_3 + x_4 + I(x_1 ^ 2)))
+  
   pooled_imp_first <- pool(model_impute_first)
   coeff_imp_first <- summary(pooled_imp_first)
 
@@ -250,7 +258,20 @@ for (i in 1:iterations) {
     cbind(data, x1_squared <- data$x_1 ^ 2)
 
   ImpDataTransFirst <- mice(data_with_transformed_variable)
+  
+  
+  ### Idee:
+  pred <- make.predictorMatrix(data)
+  pred["x_1", "x1_squared"] <- 0   
+  pred["x1_squared", "x_1"] <- 0
+  
+  ImpData <- mice(data,pred = pred, print = FALSE, seed = i, m = n_imp)
+  com_data <- complete(ImpData, "long", include = TRUE)
+  imp_data <- com_data1
+  
+  
 
+  ## hier wieder normal
   model_trans_first <-
     with(ImpData, lm(Y ~ x_1 + x_2 + x_3 + x_4 + x1_squared))
   pooled_trans_first <- pool(model_trans_first)
