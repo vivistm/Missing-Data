@@ -42,7 +42,7 @@ results_imp_first <- list()
 results_trans_first <- list()
 
 iterations <- 10 #1000
-n_imp <- 5 #Hippel sagt 40 ?
+n_imp <- 40 #Hippel sagt 40 ?
 
 
 for (i in 1:iterations) {
@@ -50,7 +50,7 @@ for (i in 1:iterations) {
   #### Daten erstellen----------------------------------------------------
   
   p <- 4  # 4 variables
-  n <- 3000 # 3000 observations
+  n <- 1000 # 3000 observations
   
   # draw expected values:
   mu <- (runif(p,-1,5))
@@ -138,7 +138,7 @@ for (i in 1:iterations) {
   ini <- mice(data, maxit = 0) # nur um Pred und Meth zu erstellen
   meth<- ini$method
   meth["x_1"] <- "quadratic"
-  meth["x1_squared"] <- "quadratic"
+  meth["x1_squared"] <- "~I(x_1^2)"
   pred <- ini$pred
   pred[, "x1_squared"] <- 0
   
