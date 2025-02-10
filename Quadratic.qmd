@@ -16,8 +16,8 @@ calculate_metrics <-
   function(coefficients, true_beta, ci_value = 1.96) { # 1.96 ist der kritische Wert den wir brauchen alternativ kann man auch qnorm verwenden
     bias <- true_beta - coefficients$estimate
 
-    ci_lower <- coefficients$estimate - ci_value / 2 * coefficients$std.error
-    ci_upper <- coefficients$estimate + ci_value / 2 * coefficients$std.error
+    ci_lower <- coefficients$estimate - ci_value* coefficients$std.error
+    ci_upper <- coefficients$estimate + ci_value* coefficients$std.error
     cov <- ci_lower <= true_beta & true_beta <= ci_upper
 
     metrics <-
