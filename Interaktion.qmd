@@ -33,8 +33,8 @@ results_of_all_methods <- list (
   "pmm_imp_first" = list(),
   "pmm_trans_first" = list(),
   #pmm_3rd_method" = list(),
-  "cart_imp_first" = list(),
-  "cart_trans_first" = list()#,
+  "rf_imp_first" = list(),
+  "rf_trans_first" = list()#,
   #"reg_3rd_method" = list()
 )
 
@@ -137,7 +137,7 @@ for (i in 1:iterations) {
     calculate_metrics(coeff_trans_first, true_beta)
   
   # Impute, then transform (CART)--------------------------
-  ImpData <- mice(data[, -which(names(data) == "interaktion")],method = "cart", seed = i, m = n_imp)
+  ImpData <- mice(data[, -which(names(data) == "interaktion")],method = "rf", seed = i, m = n_imp)
 
   model_impute_first <- with(ImpData, lm(Y ~ x_1 + x_2 + x_3 + x_4 + x_1*x_3))
 
@@ -145,12 +145,12 @@ for (i in 1:iterations) {
   pooled_imp_first <- pool(model_impute_first)
   coeff_imp_first <- summary(pooled_imp_first)
 
-  results_of_all_methods[["cart_imp_first"]][[i]] <-
+  results_of_all_methods[["rf_imp_first"]][[i]] <-
     calculate_metrics(coeff_imp_first, true_beta)
   
   # Transform, then impute (CART)
   
-  ImpDataTransFirst <- mice(data,method = "cart",pred = pred, print = FALSE, seed = i, m = n_imp)
+  ImpDataTransFirst <- mice(data,method = "rf",pred = pred, print = FALSE, seed = i, m = n_imp)
 
 
   model_trans_first <-
@@ -159,7 +159,7 @@ for (i in 1:iterations) {
   coeff_trans_first <- summary(pooled_trans_first)
 
 
-  results_of_all_methods[["cart_trans_first"]][[i]] <-
+  results_of_all_methods[["rf_trans_first"]][[i]] <-
     calculate_metrics(coeff_trans_first, true_beta)
 
 }

@@ -59,6 +59,8 @@ true_beta
 mu
 E_Y
 data_sqrt
+
+mu
 ```
 
 ## MCAR
