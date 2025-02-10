@@ -38,10 +38,7 @@ results_of_all_methods <- list (
   #"cart_poly_com = list()
 )
 
-results_imp_first <- list()
-results_trans_first <- list()
-
-iterations <- 100 #1000
+iterations <- 10 #1000
 n_imp <- 5 #Hippel sagt 40 ?
 
 
@@ -95,44 +92,36 @@ for (i in 1:iterations) {
   ##Impute, then transform----------------------------------------------
 
   #ImpData <- mice(data) # in den Daten ist die Transformierte Variable
-  ImpData <- mice(data[, -which(names(data) == "x1_squared")], seed = i, m = n_imp)
+  imp_data_pmm_imp_first <- mice(data[, -which(names(data) == "x1_squared")], seed = i, m = n_imp)
 
-  model_impute_first <- with(ImpData, lm(Y ~ x_1 + x_2 + x_3 + x_4 + I(x_1 ^ 2)))
+  model_pmm_imp_first <- with(imp_data_pmm_imp_first, lm(Y ~ x_1 + x_2 + x_3 + x_4 + I(x_1 ^ 2)))
 
   
-  pooled_imp_first <- pool(model_impute_first)
-  coeff_imp_first <- summary(pooled_imp_first)
+  pooled_pmm_imp_first <- pool(model_pmm_imp_first)
+  coeff_pmm_imp_first <- summary(pooled_pmm_imp_first)
 
   results_of_all_methods[["pmm_imp_first"]][[i]] <-
-    calculate_metrics(coeff_imp_first, true_beta) #Frage: Reicht es diese Werte abzuspeichern oder brauchen wir noch mehr?
-
-  #results <- list(coeffcients = coeff_imp_first, bias = bias_impute_first, coverage = cov_imp_first)
+    calculate_metrics(coeff_pmm_imp_first, true_beta) #Frage: Reicht es diese Werte abzuspeichern oder brauchen wir noch mehr?
 
 
 #   #Transform then impute----------------------------------
-# 
-#   data_with_transformed_variable <-
-#     cbind(data, x1_squared <- data$x_1 ^ 2)
-# 
-#   #ImpDataTransFirst <- mice(data)
-# 
 # 
 #   ### Idee:
   pred <- make.predictorMatrix(data)
   pred["x_1", "x1_squared"] <- 0
   pred["x1_squared", "x_1"] <- 0
 
-  ImpDataTransFirst <- mice(data,pred = pred, print = FALSE, seed = i, m = n_imp)
+  imp_data_pmm_trans_first <- mice(data,pred = pred, print = FALSE, seed = i, m = n_imp)
 
 
-  model_trans_first <-
-    with(ImpDataTransFirst, lm(Y ~ x_1 + x_2 + x_3 + x_4 + x1_squared))
-  pooled_trans_first <- pool(model_trans_first)
-  coeff_trans_first <- summary(pooled_trans_first)
+  model_pmm_trans_first <-
+    with(imp_data_pmm_trans_first, lm(Y ~ x_1 + x_2 + x_3 + x_4 + x1_squared))
+  pooled_pmm_trans_first <- pool(model_pmm_trans_first)
+  coeff_pmm_trans_first <- summary(pooled_pmm_trans_first)
 
 
   results_of_all_methods[["pmm_trans_first"]][[i]] <-
-    calculate_metrics(coeff_trans_first, true_beta)
+    calculate_metrics(coeff_pmm_trans_first, true_beta)
   
   # Polynomialcombination
   ini <- mice(data, maxit = 0) # nur um Pred und Meth zu erstellen
@@ -142,8 +131,8 @@ for (i in 1:iterations) {
   pred <- ini$pred
   pred[, "x1_squared"] <- 0
   
-  ImpData <- mice(data,method = meth,pred = pred,quad.outcome ="Y")
-  model_poly_com <- with(ImpData, lm(Y ~ x_1 + x_2 + x_3 + x_4 + x1_squared))
+  imp_data_poly_com <- mice(data,method = meth,pred = pred,quad.outcome ="Y")
+  model_poly_com <- with(imp_data_poly_com, lm(Y ~ x_1 + x_2 + x_3 + x_4 + x1_squared))
   pooled_poly_com <- pool(model_poly_com)
   coeff_poly_com <- summary(pooled_poly_com)
 
@@ -151,35 +140,35 @@ for (i in 1:iterations) {
   results_of_all_methods[["pmm_poly_method"]][[i]] <-
     calculate_metrics(coeff_poly_com, true_beta)
   
-  # Impute, then transform (CART)-------------------
+  # Impute, then transform (RF)-------------------
   
-  ImpData <- mice(data[, -which(names(data) == "x1_squared")], method = "rf", seed = i, m = n_imp)
+  imp_data_rf_imp_first <- mice(data[, -which(names(data) == "x1_squared")], method = "rf", seed = i, m = n_imp)
 
-  model_impute_first <- with(ImpData, lm(Y ~ x_1 + x_2 + x_3 + x_4 + I(x_1 ^ 2)))
+  model_rf_impute_first <- with(imp_data_rf_imp_first, lm(Y ~ x_1 + x_2 + x_3 + x_4 + I(x_1 ^ 2)))
 
   
-  pooled_imp_first <- pool(model_impute_first)
-  coeff_imp_first <- summary(pooled_imp_first)
+  pooled_rf_imp_first <- pool(model_rf_impute_first)
+  coeff_rf_imp_first <- summary(pooled_rf_imp_first)
 
   results_of_all_methods[["rf_imp_first"]][[i]] <-
-    calculate_metrics(coeff_imp_first, true_beta) 
+    calculate_metrics(coeff_rf_imp_first, true_beta) 
   
-  # Transform, then impute (CART)-------------------
+  # Transform, then impute (RF)-------------------
   pred <- make.predictorMatrix(data)
   pred["x_1", "x1_squared"] <- 0
   pred["x1_squared", "x_1"] <- 0
 
-  ImpDataTransFirst <- mice(data,method = "rf",pred = pred, print = FALSE, seed = i, m = n_imp)
+  imp_data_rf_trans_first <- mice(data,method = "rf",pred = pred, print = FALSE, seed = i, m = n_imp)
 
 
-  model_trans_first <-
-    with(ImpDataTransFirst, lm(Y ~ x_1 + x_2 + x_3 + x_4 + x1_squared))
-  pooled_trans_first <- pool(model_trans_first)
-  coeff_trans_first <- summary(pooled_trans_first)
+  model_rf_trans_first <-
+    with(imp_data_rf_trans_first, lm(Y ~ x_1 + x_2 + x_3 + x_4 + x1_squared))
+  pooled_rf_trans_first <- pool(model_rf_trans_first)
+  coeff_rf_trans_first <- summary(pooled_rf_trans_first)
 
 
   results_of_all_methods[["rf_trans_first"]][[i]] <-
-    calculate_metrics(coeff_trans_first, true_beta)
+    calculate_metrics(coeff_rf_trans_first, true_beta)
   
 }
 
@@ -217,7 +206,7 @@ for (method_name in names(results_of_all_methods)) {
 
 ```
 
-# Zusammengefasste Ergebnisse
+# Summary of results
 
 ```{r}
 covariates_names <- c("Intercept", "X1", "X2", "X3", "X4", "X^2")
