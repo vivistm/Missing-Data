@@ -41,7 +41,7 @@ results_of_all_methods <- list (
 results_imp_first <- list()
 results_trans_first <- list()
 
-iterations <- 100 #1000
+iterations <- 10 #1000
 n_imp <- 5 #Hippel sagt 40 ?
 
 
