@@ -26,7 +26,7 @@ calculate_metrics <-
 }
 ```
 
-# Imputate missing data (Squared)
+# Imputate missing data (Sinus)
 
 ```{r}
 results_of_all_methods <- list (
@@ -193,7 +193,7 @@ for (method_name in names(results_of_all_methods)) {
 # Zusammengefasste Ergebnisse
 
 ```{r}
-covariates_names <- c("Intercept", "X1", "X2", "X3", "X4", "X^2")
+covariates_names <- c("Intercept", "X1", "X2", "X3", "X4", "sinus(X1)")
 
 
 # Alle Koeffizienten gemeinsam ausgeben
