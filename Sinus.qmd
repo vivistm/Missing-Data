@@ -85,6 +85,7 @@ for (i in 1:iterations) {
   
   data <- data_sinus_mar
   
+  
   #Impute, then transform (PMM)-----------------------------
 
   imp_data_pmm_imp_first <- mice(data[, -which(names(data) == "sinus")], seed = i, m = n_imp)
@@ -135,7 +136,7 @@ for (i in 1:iterations) {
 
 
   model_rf_trans_first <-
-    with(ImpDataTransFirst, lm(Y ~ x_1 + x_2 + x_3 + x_4 + sin(x_1)))
+    with(imp_data_rf_trans_first, lm(Y ~ x_1 + x_2 + x_3 + x_4 + sin(x_1)))
   pooled_rf_trans_first <- pool(model_rf_trans_first)
   coeff_rf_trans_first <- summary(pooled_rf_trans_first)
 
