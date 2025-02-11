@@ -6,9 +6,8 @@ editor: visual
 
 ```{r}
 #| echo: false
-pacman::p_load("VIM","rgl","MASS","tidyverse","mice","MASS")
+pacman::p_load("VIM","rgl","MASS","tidyverse","mice","MASS","tictoc")
 ```
-
 
 # Function for calculating bias and coverage
 
@@ -28,6 +27,7 @@ calculate_metrics <-
 ```
 
 # Function Generated Data (Interaction)
+
 ```{r}
 interaction_data <- function(seed){
   set.seed(i)
@@ -80,10 +80,10 @@ results_of_all_methods <- list (
 results_imp_first <- list()
 results_trans_first <- list()
 
-iterations <- 10 #1000
-n_imp <- 5 #Hippel sagt 40 ?
+iterations <- 1000 #1000
+n_imp <- 10 #Hippel sagt 40 ?
 
-
+tic()
 for (i in 1:iterations) {
   
   true_beta <- c(1, 1.5, -0.8, 0.5, 0.2,0.4) 
@@ -148,6 +148,8 @@ for (i in 1:iterations) {
     calculate_metrics(coeff_rf_trans_first, true_beta)
 
 }
+zeit_i <- toc()
+save.image(file='Environment_I.RData')
 
 ```
 
@@ -205,4 +207,4 @@ all_coverages <- sapply(all_average_results, function(df)
 rownames(all_coverages) <- covariates_names
 
 ```
-```
+
