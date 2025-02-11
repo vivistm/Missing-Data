@@ -6,7 +6,7 @@ editor: visual
 
 ```{r}
 #| echo: false
-pacman::p_load("VIM","rgl","MASS","tidyverse","mice","MASS")
+pacman::p_load("VIM","rgl","MASS","tidyverse","mice","MASS","future")
 ```
 
 # Function for calculating bias and coverage
@@ -83,6 +83,7 @@ results_of_all_methods <- list (
 
 iterations <- 10 #1000
 n_imp <- 5 #Hippel sagt 40 ?
+n_cores <- 5
 
 
 for (i in 1:iterations) {
@@ -94,7 +95,7 @@ for (i in 1:iterations) {
   #Impute, then transform (PMM)-----------------------------
 
 
-  imp_data_pmm_imp_first <- mice(data[, -which(names(data) == "sinus")], seed = i, m = n_imp) 
+  imp_data_pmm_imp_first <- futuremice(data[, -which(names(data) == "sinus")], parallelseed = i, m = n_imp, n.core = n_cores) 
 
 
   model_pmm_impute_first <- with(imp_data_pmm_imp_first, lm(Y ~ x_1 + x_2 + x_3 + x_4 + sin(x_1)))
@@ -113,7 +114,7 @@ for (i in 1:iterations) {
   pred["x_1", "sinus_x1"] <- 0
   pred["sinus_x1", "x_1"] <- 0
 
-  imp_data_pmm_trans_first <- mice(data,pred = pred, print = FALSE, seed = i, m = n_imp)
+  imp_data_pmm_trans_first <- futuremice(data,pred = pred, print = FALSE, parallelseed = i, m = n_imp, n.core = n_cores)
 
 
   model_pmm_trans_first <-
@@ -127,7 +128,7 @@ for (i in 1:iterations) {
   
   # Impute, then transform (RF)--------------------------
 
-  imp_data_rf_imp_first <- mice(data[, -which(names(data) == "sinus_x1")],method = "rf", seed = i, m = n_imp)
+  imp_data_rf_imp_first <- futuremice(data[, -which(names(data) == "sinus_x1")],method = "rf", parallelseed = i, m = n_imp, n_cores= n.cores)
 
 
   model_rf_impute_first <- with(imp_data_rf_imp_first, lm(Y ~ x_1 + x_2 + x_3 + x_4 + sin(x_1)))
@@ -142,7 +143,7 @@ for (i in 1:iterations) {
 
   # Transform, then impute (RF)--------------------------
   
-  imp_data_rf_trans_first <- mice(data,method = "rf", pred = pred, print = FALSE, seed = i, m = n_imp)
+  imp_data_rf_trans_first <- futuremice(data,method = "rf", pred = pred, print = FALSE, parallelseed = i, m = n_imp, n.core = n_cores)
 
 
   model_rf_trans_first <-
