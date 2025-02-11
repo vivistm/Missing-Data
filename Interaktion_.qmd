@@ -1,4 +1,3 @@
-
 ---
 title: "Interaction"
 format: html
@@ -26,6 +25,8 @@ calculate_metrics <-
     # man könnte überlegen, auch noch die CI grenzen zu speichern
 }
 ```
+
+# Function Generated Data (Interaction)
 
 ```{r}
 interaction_data <- function(seed){
@@ -85,8 +86,7 @@ n_imp <- 5 #Hippel sagt 40 ?
 
 for (i in 1:iterations) {
   
-  # Generated data
-  true_beta <- c(1, 1.5, -0.8, 0.5, 0.2,0.4)
+  true_beta <- c(1, 1.5, -0.8, 0.5, 0.2,0.4) 
   data <- interaction_data(i)
   
   #Impute, then transform-----------------------------
