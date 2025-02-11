@@ -9,11 +9,12 @@ editor: visual
 pacman::p_load("VIM","rgl","MASS","tidyverse","mice","MASS")
 ```
 
+
 # Function for calculating bias and coverage
 
 ```{r}
 calculate_metrics <-
-  function(coefficients, true_beta, ci_value = 1.96) {
+  function(coefficients, true_beta, ci_value = 1.96) { # 1.96 ist der kritische Wert den wir brauchen alternativ kann man auch qnorm verwenden
     bias <- true_beta - coefficients$estimate
 
     ci_lower <- coefficients$estimate - ci_value  * coefficients$std.error
@@ -22,6 +23,45 @@ calculate_metrics <-
 
     metrics <-
       cbind(coefficients, bias, cov) 
+    # man könnte überlegen, auch noch die CI grenzen zu speichern
+}
+```
+
+# Function Generated Data (Interaction)
+```{r}
+interaction_data <- function(seed){
+  set.seed(i)
+  p <- 4    #variables
+  n <- 1000 #observations
+  
+  # draw expected values:
+  mu <- (runif(p,-1,5))
+  A <- matrix(rnorm(p^2), p, p)
+  A <- t(A) %*% A             
+  V <- cov2cor(A)           
+  
+  # Datenframe
+  x_df_org <- mvrnorm(n, mu, V) %>% data.frame()
+  names(x_df_org) <- paste0("x_", 1:4)
+  x_df_org$interaktion <- x_df_org[, 1]*x_df_org[,3] # transform
+  mu[p+1] <- mu[1]*mu[3]
+  
+  true_beta <- c(1, 1.5, -0.8, 0.5, 0.2,0.4)  
+  # c(intercept, b1,b2,b3,b4,b_interaktion)
+  
+  x_matrix_org <- as.matrix(x_df_org)
+  X_full <- cbind(1, x_matrix_org)  # add intercept
+  
+  Y <- X_full %*% true_beta + rnorm(n,0,1)
+  data_inter<- cbind(x_df_org,Y)
+  
+    data_inter_mar <- data_inter
+  # Create Missing (MAR)
+  miss_obs_x1 <- 0.5 + 2 * data_inter_mar$x_2 - 0.7 * data_inter_mar$x_3 + rnorm(n, 0, 3)
+  mis_mar_p <- miss_obs_x1 < quantile(miss_obs_x1, 0.3)
+  data_inter_mar$x_1[mis_mar_p] <- NA
+  data_inter_mar$interaktion <- data_inter_mar$x_1*data_inter_mar$x_3
+  return(data_inter_mar)
 }
 ```
 
@@ -46,109 +86,78 @@ n_imp <- 5 #Hippel sagt 40 ?
 
 for (i in 1:iterations) {
   
-  # Daten erzeugen
-  set.seed(i)
-  p <- 4    # 4 variables
-  n <- 3000 # 3000 observations
+  true_beta <- c(1, 1.5, -0.8, 0.5, 0.2,0.4) 
+  data <- interaction_data(i)
   
-  # draw expected values:
-  mu <- (runif(p,-1,5))
-  mu
-  
-  A <- matrix(rnorm(p^2), p, p)  # Zufällige Matrix
-  A <- t(A) %*% A             # Positive definite Matrix
-  V <- cov2cor(A)           # Korrelationmatrix
-  
-  # Datenframe
-  x_df_org <- mvrnorm(n, mu, V) %>% data.frame()
-  names(x_df_org) <- paste0("x_", 1:4)
-  x_df_org$interaktion <- x_df_org[, 1]*x_df_org[,3] # transformiert
-  mu[p+1] <- mu[1]*mu[3]
-  
-  true_beta <- c(1, 1.5, -0.8, 0.5, 0.2,0.4)  # c(intercept, b1,b2,b3,b4,b5(beta für interaktion))
-  E_Y <- mu%*%true_beta[2:(p+2)]+true_beta[1] # Analytische Erwartungswerte
-  
-  # Empirische Y Werte
-  x_matrix_org <- as.matrix(x_df_org)
-  X_full <- cbind(1, x_matrix_org)  # Intercept hinzufügen
-  
-  Y <- X_full %*% true_beta + rnorm(n,0,1)
-  data_inter<- cbind(x_df_org,Y)
-  
-    data_inter_mar <- data_inter
-  # Berechnung des fehlenden Mechanismus (MAR)
-  miss_obs_x1 <- 0.5 + 2 * data_inter_mar$x_2 - 0.7 * data_inter_mar$x_3 + rnorm(n, 0, 3)
-  
-  # Logischer Vektor für fehlende Werte
-  mis_mar_p <- miss_obs_x1 < quantile(miss_obs_x1, 0.3)
-  
-  # Zuweisung von NA in x_1
-  data_inter_mar$x_1[mis_mar_p] <- NA
-  
-  # Missingness bei x_1 squard durch NAs die Missing in x1 sind
-  data_inter_mar$interaktion <- data_inter_mar$x_1*data_inter_mar$x_3
+  #Impute, then transform-----------------------------
+
+  #ImpData <- mice(data) # in den Daten ist die Transformierte Variable
+  ImpData <- mice(data[, -which(names(data) == "interaktion")], seed = i, m = n_imp)
+
+  model_impute_first <- with(ImpData, lm(Y ~ x_1 + x_2 + x_3 + x_4 + x_1*x_3))
 
   
-  data <- data_inter_mar
-  
-  #Impute, then transform (PMM)-----------------------------
-
-  imp_data_pmm_imp_first <- mice(data[, -which(names(data) == "interaktion")], seed = i, m = n_imp)
-
-  model_pmm_imp_first <- with(imp_data_pmm_imp_first, lm(Y ~ x_1 + x_2 + x_3 + x_4 + x_1*x_3))
-
-  
-  pooled_pmm_imp_first <- pool(model_pmm_imp_first)
-  coeff_pmm_imp_first <- summary(pooled_pmm_imp_first)
+  pooled_imp_first <- pool(model_impute_first)
+  coeff_imp_first <- summary(pooled_imp_first)
 
   results_of_all_methods[["pmm_imp_first"]][[i]] <-
-    calculate_metrics(coeff_pmm_imp_first, true_beta) 
+    calculate_metrics(coeff_imp_first, true_beta) #Frage: Reicht es diese Werte abzuspeichern oder brauchen wir noch mehr?
 
-  #Transform then impute (PMM)--------------------------------------
+  #results <- list(coeffcients = coeff_imp_first, bias = bias_impute_first, coverage = cov_imp_first)
 
+
+  #Transform then impute--------------------------------------
+
+  #data_with_transformed_variable <-
+  #  cbind(data, x1_squared <- data$x_1 ^ 2)
+
+  #ImpDataTransFirst <- mice(data)
+
+
+  ### Idee:
   pred <- make.predictorMatrix(data)
   pred["x_1", "interaktion"] <- 0
   pred["interaktion", "x_1"] <- 0
   pred["x_3","interaktion"] <- 0
   pred["interaktion","x_3"] <- 0
 
-  imp_data_pmm_trans_first <- mice(data,pred = pred, print = FALSE, seed = i, m = n_imp)
+  ImpDataTransFirst <- mice(data,pred = pred, print = FALSE, seed = i, m = n_imp)
 
 
-  model_pmm_trans_first <-
-    with(imp_data_pmm_trans_first, lm(Y ~ x_1 + x_2 + x_3 + x_4 + x_1*x_3))
-  pooled_pmm_trans_first <- pool(model_pmm_trans_first)
-  coeff_pmm_trans_first <- summary(pooled_pmm_trans_first)
+  model_trans_first <-
+    with(ImpData, lm(Y ~ x_1 + x_2 + x_3 + x_4 + x_1*x_3))
+  pooled_trans_first <- pool(model_trans_first)
+  coeff_trans_first <- summary(pooled_trans_first)
 
 
   results_of_all_methods[["pmm_trans_first"]][[i]] <-
-    calculate_metrics(coeff_pmm_trans_first, true_beta)
+    calculate_metrics(coeff_trans_first, true_beta)
   
-  # Impute, then transform (RF)--------------------------
-  imp_data_rf_imp_first <- mice(data[, -which(names(data) == "interaktion")],method = "rf", seed = i, m = n_imp)
+  # Impute, then transform (CART)--------------------------
+  ImpData <- mice(data[, -which(names(data) == "interaktion")],method = "rf", seed = i, m = n_imp)
 
-  model_rf_imp_first <- with(imp_data_rf_imp_first, lm(Y ~ x_1 + x_2 + x_3 + x_4 + x_1*x_3))
+  model_impute_first <- with(ImpData, lm(Y ~ x_1 + x_2 + x_3 + x_4 + x_1*x_3))
 
   
-  pooled_rf_imp_first <- pool(model_rf_imp_first)
-  coeff_rf_imp_first <- summary(pooled_rf_imp_first)
+  pooled_imp_first <- pool(model_impute_first)
+  coeff_imp_first <- summary(pooled_imp_first)
 
   results_of_all_methods[["rf_imp_first"]][[i]] <-
-    calculate_metrics(coeff_rf_imp_first, true_beta)
+    calculate_metrics(coeff_imp_first, true_beta)
   
-  # Transform, then impute (RF)
+  # Transform, then impute (CART)
   
-  imp_data_rf_trans_first <- mice(data,method = "rf",pred = pred, print = FALSE, seed = i, m = n_imp)
+  ImpDataTransFirst <- mice(data,method = "rf",pred = pred, print = FALSE, seed = i, m = n_imp)
 
 
-  model_rf_trans_first <-
-    with(imp_data_rf_trans_first, lm(Y ~ x_1 + x_2 + x_3 + x_4 + x_1*x_3))
-  pooled_rf_trans_first <- pool(model_rf_trans_first)
-  coeff_rf_trans_first <- summary(pooled_rf_trans_first)
+  model_trans_first <-
+    with(ImpData, lm(Y ~ x_1 + x_2 + x_3 + x_4 + x_1*x_3))
+  pooled_trans_first <- pool(model_trans_first)
+  coeff_trans_first <- summary(pooled_trans_first)
 
 
   results_of_all_methods[["rf_trans_first"]][[i]] <-
-    calculate_metrics(coeff_rf_trans_first, true_beta)
+    calculate_metrics(coeff_trans_first, true_beta)
 
 }
 
@@ -189,7 +198,7 @@ for (method_name in names(results_of_all_methods)) {
 # Zusammengefasste Ergebnisse
 
 ```{r}
-covariates_names <- c("Intercept", "X1", "X2", "X3", "X4", "X1*X3")
+covariates_names <- c("Intercept", "X1", "X2", "X3", "X4", "X^2")
 
 # Alle Koeffizienten gemeinsam ausgeben
 all_coefficients <- sapply(all_average_results, function(df)
