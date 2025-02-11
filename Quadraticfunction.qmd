@@ -1,18 +1,17 @@
 ---
-title: "Quadraticfunction"
+title: "Quadratic"
 format: html
 editor: visual
 ---
 
-Function for calculating bias and coverage
+# Function for calculating bias and coverage
 
 ```{r}
 #| echo: false
-pacman::p_load("VIM","rgl","MASS","tidyverse","mice","MASS")
+pacman::p_load("VIM","rgl","MASS","tidyverse","mice","MASS","future")
 ```
 
-Calculate Funktion
-
+# Function for generating data
 ```{r}
 calculate_metrics <-
   function(coefficients, true_beta, ci_value = 1.96) { # 1.96 ist der kritische Wert den wir brauchen alternativ kann man auch qnorm verwenden
@@ -49,7 +48,7 @@ quadratic_data <- function(seed){
   mu[p+1] <- mu[1]^2
   
   true_beta <- c(1, 1.5, -0.8, 0.5, 0.2,0.4)  
-  # c(intercept, b1,b2,b3,b4,b_interaction))
+  # c(intercept, b1,b2,b3,b4,b_quadaric))
   
   x_matrix_org <- as.matrix(x_df_org)
   X_full <- cbind(1, x_matrix_org)  # add intercept
@@ -70,6 +69,21 @@ quadratic_data <- function(seed){
 
 ```
 
+# Future Mice
+
+```{r}
+n_imp <- 40
+data <- quadratic_data(42)
+n_cores<- min(n_imp,availableCores() - 2)
+n_cores
+Impdata <- futuremice(data[, -which(names(data) == "x1_squared")], m=n_imp,n.core = n_cores,parallelseed = 42)
+
+
+
+```
+
+# Imputate missing data (Squared)
+
 ```{r}
 results_of_all_methods <- list (
   "pmm_imp_first" = list(),
@@ -87,7 +101,7 @@ n_imp <- 5 #Hippel sagt 40 ?
 for (i in 1:iterations) {
   
   true_beta <- c(1, 1.5, -0.8, 0.5, 0.2,0.4) 
-  data <- quadratic_data(i)
+  data <- quadratic_data(i) #Generating data
   
   ##Impute, then transform----------------------------------------------
 
@@ -171,6 +185,7 @@ for (i in 1:iterations) {
     calculate_metrics(coeff_rf_trans_first, true_beta)
   
 }
+
 ```
 
 # Calculate averages over all iterations of one method
@@ -202,9 +217,10 @@ for (method_name in names(results_of_all_methods)) {
   }
   all_average_results[[method_name]] <- avg_results
 }
+
 ```
 
-#Summary of results
+# Summary of results
 
 ```{r}
 covariates_names <- c("Intercept", "X1", "X2", "X3", "X4", "X^2")
@@ -224,4 +240,5 @@ rownames(all_biases) <- covariates_names
 all_coverages <- sapply(all_average_results, function(df)
   df[,"coverage"])
 rownames(all_coverages) <- covariates_names
+
 ```
