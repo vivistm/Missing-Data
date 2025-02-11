@@ -205,3 +205,4 @@ all_coverages <- sapply(all_average_results, function(df)
 rownames(all_coverages) <- covariates_names
 
 ```
+>>>>>>> 509877e7e906ad43021add338dc62d3552d2b382
