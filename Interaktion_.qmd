@@ -1,8 +1,10 @@
+
 ---
-title: "Sinus"
+title: "Interaction"
 format: html
 editor: visual
 ---
+
 ```{r}
 #| echo: false
 pacman::p_load("VIM","rgl","MASS","tidyverse","mice","MASS")
@@ -12,16 +14,53 @@ pacman::p_load("VIM","rgl","MASS","tidyverse","mice","MASS")
 
 ```{r}
 calculate_metrics <-
-  function(coefficients, true_beta, ci_value = 0.95) {
+  function(coefficients, true_beta, ci_value = 1.96) { # 1.96 ist der kritische Wert den wir brauchen alternativ kann man auch qnorm verwenden
     bias <- true_beta - coefficients$estimate
 
-    ci_lower <- coefficients$estimate - ci_value / 2 * coeff_imp_first$std.error
-    ci_upper <- coefficients$estimate + ci_value / 2 * coeff_imp_first$std.error
+    ci_lower <- coefficients$estimate - ci_value  * coefficients$std.error
+    ci_upper <- coefficients$estimate + ci_value  * coefficients$std.error
     cov <- ci_lower <= true_beta & true_beta <= ci_upper
 
     metrics <-
       cbind(coefficients, bias, cov) 
     # man könnte überlegen, auch noch die CI grenzen zu speichern
+}
+```
+
+```{r}
+interaction_data <- function(seed){
+  set.seed(i)
+  p <- 4    #variables
+  n <- 1000 #observations
+  
+  # draw expected values:
+  mu <- (runif(p,-1,5))
+  A <- matrix(rnorm(p^2), p, p)
+  A <- t(A) %*% A             
+  V <- cov2cor(A)           
+  
+  # Datenframe
+  x_df_org <- mvrnorm(n, mu, V) %>% data.frame()
+  names(x_df_org) <- paste0("x_", 1:4)
+  x_df_org$interaktion <- x_df_org[, 1]*x_df_org[,3] # transform
+  mu[p+1] <- mu[1]*mu[3]
+  
+  true_beta <- c(1, 1.5, -0.8, 0.5, 0.2,0.4)  
+  # c(intercept, b1,b2,b3,b4,b_interaktion)
+  
+  x_matrix_org <- as.matrix(x_df_org)
+  X_full <- cbind(1, x_matrix_org)  # add intercept
+  
+  Y <- X_full %*% true_beta + rnorm(n,0,1)
+  data_inter<- cbind(x_df_org,Y)
+  
+    data_inter_mar <- data_inter
+  # Create Missing (MAR)
+  miss_obs_x1 <- 0.5 + 2 * data_inter_mar$x_2 - 0.7 * data_inter_mar$x_3 + rnorm(n, 0, 3)
+  mis_mar_p <- miss_obs_x1 < quantile(miss_obs_x1, 0.3)
+  data_inter_mar$x_1[mis_mar_p] <- NA
+  data_inter_mar$interaktion <- data_inter_mar$x_1*data_inter_mar$x_3
+  return(data_inter_mar)
 }
 ```
 
@@ -46,54 +85,16 @@ n_imp <- 5 #Hippel sagt 40 ?
 
 for (i in 1:iterations) {
   
-  # Daten erzeugen
-  set.seed(i)
-  p <- 4    # 4 variables
-  n <- 3000 # 3000 observations
-  
-  # draw expected values:
-  mu <- (runif(p,-1,5))
-  
-  A <- matrix(rnorm(p^2), p, p)  # Zufällige Matrix
-  A <- t(A) %*% A             # Positive definite Matrix
-  V <- cov2cor(A)           # Korrelationmatrix
-  
-  # Datenframe
-  x_df_org <- mvrnorm(n, mu, V) %>% data.frame()
-  names(x_df_org) <- paste0("x_", 1:4)
-  x_df_org$sinus <- sin(x_df_org[, 1]) # transformiert
-  mu[p+1] <- sin(mu[1])
-  
-  true_beta <- c(1, 1.5, -0.8, 0.5, 0.2,0.4)  # c(intercept, b1,b2,b3,b4,b5(beta für interaktion))
-  E_Y <- mu%*%true_beta[2:(p+2)]+true_beta[1] # Analytische Erwartungswerte
-  
-  # Empirische Y Werte
-  x_matrix_org <- as.matrix(x_df_org)
-  X_full <- cbind(1, x_matrix_org)  # Intercept hinzufügen
-  
-  Y <- X_full %*% true_beta + rnorm(n,0,1)
-  data_sinus<- cbind(x_df_org,Y)
-  
-  
-  data_sinus_mar <- data_sinus
-  # Berechnung des fehlenden Mechanismus (MAR)
-  miss_obs_x1 <- 0.5 + 2 * data_sinus_mar$x_2 - 0.7 * data_sinus_mar$x_3 + rnorm(n, 0, 3)
-  
-  # Logischer Vektor für fehlende Werte
-  mis_mar_p <- miss_obs_x1 < quantile(miss_obs_x1, 0.3)
-  
-  # Zuweisung von NA in x_1
-  data_sinus_mar$x_1[mis_mar_p] <- NA
-  data_sinus_mar$sinus[mis_mar_p] <- NA
-  
-  data <- data_sinus_mar
+  # Generated data
+  true_beta <- c(1, 1.5, -0.8, 0.5, 0.2,0.4)
+  data <- interaction_data(i)
   
   #Impute, then transform-----------------------------
 
   #ImpData <- mice(data) # in den Daten ist die Transformierte Variable
-  ImpData <- mice(data[, -which(names(data) == "sinus")], seed = i, m = n_imp)
+  ImpData <- mice(data[, -which(names(data) == "interaktion")], seed = i, m = n_imp)
 
-  model_impute_first <- with(ImpData, lm(Y ~ x_1 + x_2 + x_3 + x_4 + sin(x_1)))
+  model_impute_first <- with(ImpData, lm(Y ~ x_1 + x_2 + x_3 + x_4 + x_1*x_3))
 
   
   pooled_imp_first <- pool(model_impute_first)
@@ -115,14 +116,16 @@ for (i in 1:iterations) {
 
   ### Idee:
   pred <- make.predictorMatrix(data)
-  pred["x_1", "sinus"] <- 0
-  pred["sinus", "x_1"] <- 0
+  pred["x_1", "interaktion"] <- 0
+  pred["interaktion", "x_1"] <- 0
+  pred["x_3","interaktion"] <- 0
+  pred["interaktion","x_3"] <- 0
 
   ImpDataTransFirst <- mice(data,pred = pred, print = FALSE, seed = i, m = n_imp)
 
 
   model_trans_first <-
-    with(ImpData, lm(Y ~ x_1 + x_2 + x_3 + x_4 + sin(x_1)))
+    with(ImpData, lm(Y ~ x_1 + x_2 + x_3 + x_4 + x_1*x_3))
   pooled_trans_first <- pool(model_trans_first)
   coeff_trans_first <- summary(pooled_trans_first)
 
@@ -131,9 +134,9 @@ for (i in 1:iterations) {
     calculate_metrics(coeff_trans_first, true_beta)
   
   # Impute, then transform (CART)--------------------------
-  ImpData <- mice(data[, -which(names(data) == "sinus")],method = "rf", seed = i, m = n_imp)
+  ImpData <- mice(data[, -which(names(data) == "interaktion")],method = "rf", seed = i, m = n_imp)
 
-  model_impute_first <- with(ImpData, lm(Y ~ x_1 + x_2 + x_3 + x_4 + sin(x_1)))
+  model_impute_first <- with(ImpData, lm(Y ~ x_1 + x_2 + x_3 + x_4 + x_1*x_3))
 
   
   pooled_imp_first <- pool(model_impute_first)
@@ -148,7 +151,7 @@ for (i in 1:iterations) {
 
 
   model_trans_first <-
-    with(ImpData, lm(Y ~ x_1 + x_2 + x_3 + x_4 + sin(x_1)))
+    with(ImpData, lm(Y ~ x_1 + x_2 + x_3 + x_4 + x_1*x_3))
   pooled_trans_first <- pool(model_trans_first)
   coeff_trans_first <- summary(pooled_trans_first)
 
