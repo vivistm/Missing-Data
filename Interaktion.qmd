@@ -14,7 +14,7 @@ pacman::p_load("VIM","rgl","MASS","tidyverse","mice","MASS")
 
 ```{r}
 calculate_metrics <-
-  function(coefficients, true_beta, ci_value = 1.96) { # 1.96 ist der kritische Wert den wir brauchen alternativ kann man auch qnorm verwenden
+  function(coefficients, true_beta, ci_value = 1.96) {
     bias <- true_beta - coefficients$estimate
 
     ci_lower <- coefficients$estimate - ci_value  * coefficients$std.error
@@ -89,75 +89,63 @@ for (i in 1:iterations) {
   true_beta <- c(1, 1.5, -0.8, 0.5, 0.2,0.4) 
   data <- interaction_data(i)
   
-  #Impute, then transform-----------------------------
+  #Impute, then transform (PMM)-----------------------------
 
-  #ImpData <- mice(data) # in den Daten ist die Transformierte Variable
-  ImpData <- mice(data[, -which(names(data) == "interaktion")], seed = i, m = n_imp)
+  imp_data_pmm_imp_first <- mice(data[, -which(names(data) == "interaktion")], seed = i, m = n_imp)
 
-  model_impute_first <- with(ImpData, lm(Y ~ x_1 + x_2 + x_3 + x_4 + x_1*x_3))
+  model_pmm_imp_first <- with(imp_data_pmm_imp_first , lm(Y ~ x_1 + x_2 + x_3 + x_4 + x_1*x_3))
 
   
-  pooled_imp_first <- pool(model_impute_first)
-  coeff_imp_first <- summary(pooled_imp_first)
+  pooled_pmm_imp_first <- pool(model_pmm_imp_first)
+  coeff_pmm_imp_first <- summary(pooled_pmm_imp_first)
 
   results_of_all_methods[["pmm_imp_first"]][[i]] <-
-    calculate_metrics(coeff_imp_first, true_beta) #Frage: Reicht es diese Werte abzuspeichern oder brauchen wir noch mehr?
+    calculate_metrics(coeff_pmm_imp_first, true_beta)
 
-  #results <- list(coeffcients = coeff_imp_first, bias = bias_impute_first, coverage = cov_imp_first)
+  #Transform then impute (PMM)--------------------------------------
 
-
-  #Transform then impute--------------------------------------
-
-  #data_with_transformed_variable <-
-  #  cbind(data, x1_squared <- data$x_1 ^ 2)
-
-  #ImpDataTransFirst <- mice(data)
-
-
-  ### Idee:
   pred <- make.predictorMatrix(data)
   pred["x_1", "interaktion"] <- 0
   pred["interaktion", "x_1"] <- 0
   pred["x_3","interaktion"] <- 0
   pred["interaktion","x_3"] <- 0
 
-  ImpDataTransFirst <- mice(data,pred = pred, print = FALSE, seed = i, m = n_imp)
+  imp_data_pmm_trans_first <- mice(data,pred = pred, print = FALSE, seed = i, m = n_imp)
 
-
-  model_trans_first <-
-    with(ImpData, lm(Y ~ x_1 + x_2 + x_3 + x_4 + x_1*x_3))
-  pooled_trans_first <- pool(model_trans_first)
-  coeff_trans_first <- summary(pooled_trans_first)
+  model_pmm_trans_first <-
+    with(imp_data_pmm_trans_first, lm(Y ~ x_1 + x_2 + x_3 + x_4 + x_1*x_3))
+  pooled_pmm_trans_first <- pool(model_pmm_trans_first)
+  coeff_pmm_trans_first <- summary(pooled_pmm_trans_first)
 
 
   results_of_all_methods[["pmm_trans_first"]][[i]] <-
-    calculate_metrics(coeff_trans_first, true_beta)
+    calculate_metrics(coeff_pmm_trans_first, true_beta)
   
-  # Impute, then transform (CART)--------------------------
-  ImpData <- mice(data[, -which(names(data) == "interaktion")],method = "rf", seed = i, m = n_imp)
+  # Impute, then transform (RF)--------------------------
+  imp_data_rf_imp_first <- mice(data[, -which(names(data) == "interaktion")],method = "rf", seed = i, m = n_imp)
 
-  model_impute_first <- with(ImpData, lm(Y ~ x_1 + x_2 + x_3 + x_4 + x_1*x_3))
+  model_rf_impute_first <- with(imp_data_rf_imp_first, lm(Y ~ x_1 + x_2 + x_3 + x_4 + x_1*x_3))
 
   
-  pooled_imp_first <- pool(model_impute_first)
-  coeff_imp_first <- summary(pooled_imp_first)
+  pooled_rf_imp_first <- pool(model_rf_impute_first)
+  coeff_rf_imp_first <- summary(pooled_rf_imp_first)
 
   results_of_all_methods[["rf_imp_first"]][[i]] <-
-    calculate_metrics(coeff_imp_first, true_beta)
+    calculate_metrics(coeff_rf_imp_first, true_beta)
   
-  # Transform, then impute (CART)
+  # Transform, then impute (RF)
   
-  ImpDataTransFirst <- mice(data,method = "rf",pred = pred, print = FALSE, seed = i, m = n_imp)
+  imp_data_rf_trans_first <- mice(data,method = "rf",pred = pred, print = FALSE, seed = i, m = n_imp)
 
 
-  model_trans_first <-
-    with(ImpData, lm(Y ~ x_1 + x_2 + x_3 + x_4 + x_1*x_3))
-  pooled_trans_first <- pool(model_trans_first)
-  coeff_trans_first <- summary(pooled_trans_first)
+  model_rf_trans_first <-
+    with(imp_data_rf_trans_first, lm(Y ~ x_1 + x_2 + x_3 + x_4 + x_1*x_3))
+  pooled_rf_trans_first <- pool(model_rf_trans_first)
+  coeff_rf_trans_first <- summary(pooled_rf_trans_first)
 
 
   results_of_all_methods[["rf_trans_first"]][[i]] <-
-    calculate_metrics(coeff_trans_first, true_beta)
+    calculate_metrics(coeff_rf_trans_first, true_beta)
 
 }
 
