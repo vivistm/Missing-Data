@@ -6,7 +6,7 @@ editor: visual
 
 ```{r}
 #| echo: false
-pacman::p_load("VIM","rgl","MASS","tidyverse","mice","MASS")
+pacman::p_load("VIM","rgl","MASS","tidyverse","mice","MASS","tictoc")
 ```
 
 # Function for calculating bias and coverage
@@ -81,8 +81,8 @@ results_of_all_methods <- list (
   #"reg_3rd_method" = list()
 )
 
-iterations <- 10 #1000
-n_imp <- 5 #Hippel sagt 40 ?
+iterations <- 1000 #1000
+n_imp <- 10 #Hippel sagt 40 ?
 
 
 for (i in 1:iterations) {
@@ -94,7 +94,7 @@ for (i in 1:iterations) {
   #Impute, then transform (PMM)-----------------------------
 
 
-  imp_data_pmm_imp_first <- mice(data[, -which(names(data) == "sinus")], seed = i, m = n_imp) 
+  imp_data_pmm_imp_first <- mice(data[, -which(names(data) == "sinus_x1")], seed = i, m = n_imp) 
 
 
   model_pmm_impute_first <- with(imp_data_pmm_imp_first, lm(Y ~ x_1 + x_2 + x_3 + x_4 + sin(x_1)))
@@ -155,6 +155,8 @@ for (i in 1:iterations) {
     calculate_metrics(coeff_rf_trans_first, true_beta)
 
 }
+zeit_sinus <- toc()
+save.image(file='Environment_S.RData')
 
 ```
 
