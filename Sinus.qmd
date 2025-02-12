@@ -81,7 +81,7 @@ results_of_all_methods <- list (
   #"reg_3rd_method" = list()
 )
 
-iterations <- 1000 #1000
+iterations <- 100 #1000
 n_imp <- 10 #Hippel sagt 40 ?
 
 
@@ -117,7 +117,7 @@ for (i in 1:iterations) {
 
 
   model_pmm_trans_first <-
-    with(imp_data_pmm_trans_first, lm(Y ~ x_1 + x_2 + x_3 + x_4 + sin(x_1)))
+    with(imp_data_pmm_trans_first, lm(Y ~ x_1 + x_2 + x_3 + x_4 + sinus_x1))
   pooled_pmm_trans_first <- pool(model_pmm_trans_first)
   coeff_pmm_trans_first <- summary(pooled_pmm_trans_first)
 
@@ -146,7 +146,7 @@ for (i in 1:iterations) {
 
 
   model_rf_trans_first <-
-    with(imp_data_rf_trans_first, lm(Y ~ x_1 + x_2 + x_3 + x_4 + sin(x_1)))
+    with(imp_data_rf_trans_first, lm(Y ~ x_1 + x_2 + x_3 + x_4 + sinus_x1))
   pooled_rf_trans_first <- pool(model_rf_trans_first)
   coeff_rf_trans_first <- summary(pooled_rf_trans_first)
 
