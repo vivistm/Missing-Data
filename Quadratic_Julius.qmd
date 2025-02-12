@@ -76,7 +76,8 @@ results_of_all_methods <- list (
   "pmm_poly_method" = list(),# Da geht glaube ich nur mit pmmm (also default wird das verwendet)
   "rf_imp_first" = list(),
   "rf_trans_first" = list(),
-  "bd" = list()
+  "bd" = list(),
+  "cc" = list()
   #"cart_poly_com = list()
 )
 
@@ -97,11 +98,20 @@ for (i in 1:iterations) {
   
   results_of_all_methods[["bd"]][[i]] <- 
     calculate_metrics(coeff_BD, true_beta)
-  ##Impute, then transform----------------------------------------------
+  
+  
+  ### Complete Case Analysis ###
   data <- data$MAR
+  data_cc<- na.omit(data)
+  lm_CC <- lm(Y~., data = data_cc)
+  coeff_CC <- data.frame("estimate" = coef(lm_CC),
+                         "std.error"= summary(lm_CC)$coefficients[,2])
+  
+  ##Impute, then transform----------------------------------------------
+ 
   
   #ImpData <- mice(data) # in den Daten ist die Transformierte Variable
-  imp_data_pmm_imp_first <- mice(data[, -which(names(data) == "x1_squared")], m = n_imp)
+  imp_data_pmm_imp_first <- mice(data[, -which(names(data) == "x1_squared")], m = n_imp, print = FALSE)
   model_pmm_imp_first <- with(imp_data_pmm_imp_first, lm(Y ~ x_1 + x_2 + x_3 + x_4 + I(x_1 ^ 2)))
   
   pooled_pmm_imp_first <- pool(model_pmm_imp_first)
@@ -138,7 +148,7 @@ for (i in 1:iterations) {
   pred <- ini$pred
   pred[, "x1_squared"] <- 0
   
-  imp_data_poly_com <- mice(data,method = meth,pred = pred,quad.outcome ="Y", m = n_imp)
+  imp_data_poly_com <- mice(data,method = meth,pred = pred,quad.outcome ="Y", m = n_imp, print = FALSE)
   model_poly_com <- with(imp_data_poly_com, lm(Y ~ x_1 + x_2 + x_3 + x_4 + x1_squared))
   pooled_poly_com <- pool(model_poly_com)
   coeff_poly_com <- summary(pooled_poly_com)
@@ -149,7 +159,7 @@ for (i in 1:iterations) {
   
   # Impute, then transform (RF)-------------------
   
-  imp_data_rf_imp_first <- mice(data[, -which(names(data) == "x1_squared")], method = "cart", m = n_imp)
+  imp_data_rf_imp_first <- mice(data[, -which(names(data) == "x1_squared")], method = "cart", m = n_imp, print = FALSE)
 
   model_rf_impute_first <- with(imp_data_rf_imp_first, lm(Y ~ x_1 + x_2 + x_3 + x_4 + I(x_1 ^ 2)))
 
@@ -174,7 +184,7 @@ for (i in 1:iterations) {
 
   results_of_all_methods[["rf_trans_first"]][[i]] <-
     calculate_metrics(coeff_rf_trans_first, true_beta)
-  
+  print(i)
 }
 toc()
 zeit <- toc()
