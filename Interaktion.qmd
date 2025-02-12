@@ -30,7 +30,7 @@ calculate_metrics <-
 
 ```{r}
 interaction_data <- function(seed){
-  set.seed(i)
+  
   p <- 4    #variables
   n <- 1000 #observations
   
@@ -61,7 +61,8 @@ interaction_data <- function(seed){
   mis_mar_p <- miss_obs_x1 < quantile(miss_obs_x1, 0.3)
   data_inter_mar$x_1[mis_mar_p] <- NA
   data_inter_mar$interaktion <- data_inter_mar$x_1*data_inter_mar$x_3
-  return(data_inter_mar)
+  return(list("MAR" = data_inter_mar, 
+              "BD" = data_inter))
 }
 ```
 
@@ -73,25 +74,37 @@ results_of_all_methods <- list (
   "pmm_trans_first" = list(),
   #pmm_3rd_method" = list(),
   "rf_imp_first" = list(),
-  "rf_trans_first" = list()#,
+  "rf_trans_first" = list(),
+  "bd" = list()#,
   #"reg_3rd_method" = list()
 )
 
 results_imp_first <- list()
 results_trans_first <- list()
 
-iterations <- 1000 #1000
+iterations <- 100 #1000
 n_imp <- 10 #Hippel sagt 40 ?
 
 tic()
+set.seed(42)
 for (i in 1:iterations) {
   
   true_beta <- c(1, 1.5, -0.8, 0.5, 0.2,0.4) 
-  data <- interaction_data(i)
+  data <- interaction_data(i) # i wird nicht verwendet
+  
+  ### Before Deletion ####
+  data_BD <- data$BD
+  lm_BD <- lm(Y~., data = data_BD)
+  coeff_BD <- data.frame("estimate" = coef(lm_BD),
+                          "std.error" = summary(lm_BD)$coefficients[,2])
+  
+  results_of_all_methods[["bd"]][[i]] <- 
+    calculate_metrics(coeff_BD, true_beta)
   
   #Impute, then transform (PMM)-----------------------------
+  data <- data$MAR
 
-  imp_data_pmm_imp_first <- mice(data[, -which(names(data) == "interaktion")], seed = i, m = n_imp)
+  imp_data_pmm_imp_first <- mice(data[, -which(names(data) == "interaktion")], m = n_imp, print = FALSE)
 
   model_pmm_imp_first <- with(imp_data_pmm_imp_first , lm(Y ~ x_1 + x_2 + x_3 + x_4 + x_1*x_3))
 
@@ -110,7 +123,7 @@ for (i in 1:iterations) {
   pred["x_3","interaktion"] <- 0
   pred["interaktion","x_3"] <- 0
 
-  imp_data_pmm_trans_first <- mice(data,pred = pred, print = FALSE, seed = i, m = n_imp)
+  imp_data_pmm_trans_first <- mice(data,pred = pred, print = FALSE, m = n_imp)
 
   model_pmm_trans_first <-
     with(imp_data_pmm_trans_first, lm(Y ~ x_1 + x_2 + x_3 + x_4 + interaktion))
@@ -122,7 +135,7 @@ for (i in 1:iterations) {
     calculate_metrics(coeff_pmm_trans_first, true_beta)
   
   # Impute, then transform (RF)--------------------------
-  imp_data_rf_imp_first <- mice(data[, -which(names(data) == "interaktion")],method = "rf", seed = i, m = n_imp)
+  imp_data_rf_imp_first <- mice(data[, -which(names(data) == "interaktion")],method = "cart", m = n_imp, print = FALSE)
 
   model_rf_impute_first <- with(imp_data_rf_imp_first, lm(Y ~ x_1 + x_2 + x_3 + x_4 + x_1*x_3))
 
@@ -135,7 +148,7 @@ for (i in 1:iterations) {
   
   # Transform, then impute (RF)
   
-  imp_data_rf_trans_first <- mice(data,method = "rf",pred = pred, print = FALSE, seed = i, m = n_imp)
+  imp_data_rf_trans_first <- mice(data,method = "cart",pred = pred, print = FALSE, m = n_imp)
 
 
   model_rf_trans_first <-
@@ -146,7 +159,7 @@ for (i in 1:iterations) {
 
   results_of_all_methods[["rf_trans_first"]][[i]] <-
     calculate_metrics(coeff_rf_trans_first, true_beta)
-
+  print(i)
 }
 zeit_i <- toc()
 save.image(file='Environment_I.RData')
