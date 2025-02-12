@@ -75,7 +75,8 @@ results_of_all_methods <- list (
   #pmm_3rd_method" = list(),
   "rf_imp_first" = list(),
   "rf_trans_first" = list(),
-  "bd" = list()#,
+  "bd" = list(),
+  "cc" = list()#,
   #"reg_3rd_method" = list()
 )
 
@@ -101,8 +102,15 @@ for (i in 1:iterations) {
   results_of_all_methods[["bd"]][[i]] <- 
     calculate_metrics(coeff_BD, true_beta)
   
-  #Impute, then transform (PMM)-----------------------------
+  ### Complete Case Analysis ###
   data <- data$MAR
+  data_cc<- na.omit(data)
+  lm_CC <- lm(Y~., data = data_cc)
+  coeff_CC <- data.frame("estimate" = coef(lm_CC),
+                         "std.error"= summary(lm_CC)$coefficients[,2])
+  
+  #Impute, then transform (PMM)-----------------------------
+  
 
   imp_data_pmm_imp_first <- mice(data[, -which(names(data) == "interaktion")], m = n_imp, print = FALSE)
 
