@@ -108,6 +108,8 @@ for (i in 1:iterations) {
   lm_CC <- lm(Y~., data = data_cc)
   coeff_CC <- data.frame("estimate" = coef(lm_CC),
                          "std.error"= summary(lm_CC)$coefficients[,2])
+  results_of_all_methods[["cc"]][[i]] <- 
+  calculate_metrics(coeff_BD, true_beta)
   
   #Impute, then transform (PMM)-----------------------------
   
@@ -228,4 +230,3 @@ all_coverages <- sapply(all_average_results, function(df)
 rownames(all_coverages) <- covariates_names
 
 ```
-

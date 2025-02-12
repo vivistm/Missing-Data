@@ -83,7 +83,7 @@ results_of_all_methods <- list (
   #"reg_3rd_method" = list()
 )
 
-iterations <- 100 #1000
+iterations <- 10 #1000
 n_imp <- 10 #Hippel sagt 40 ?
 
 
@@ -108,6 +108,8 @@ for (i in 1:iterations) {
   coeff_CC <- data.frame("estimate" = coef(lm_CC),
                          "std.error"= summary(lm_CC)$coefficients[,2])
   
+  results_of_all_methods[["cc"]][[i]] <- 
+  calculate_metrics(coeff_BD, true_beta)
   #Impute, then transform (PMM)-----------------------------
 
   imp_data_pmm_imp_first <- mice(data[, -which(names(data) == "sinus_x1")], m = n_imp, print = FALSE) 
