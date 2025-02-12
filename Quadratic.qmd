@@ -79,7 +79,7 @@ results_of_all_methods <- list (
 )
 
 iterations <- 1000 #1000
-n_imp <- 10 
+n_imp <- 10
 
 tic()
 for (i in 1:iterations) {
@@ -129,7 +129,7 @@ for (i in 1:iterations) {
   pred <- ini$pred
   pred[, "x1_squared"] <- 0
   
-  imp_data_poly_com <- mice(data,method = meth,pred = pred,quad.outcome ="Y")
+  imp_data_poly_com <- mice(data,method = meth,pred = pred,quad.outcome ="Y", m = n_imp, seed = i)
   model_poly_com <- with(imp_data_poly_com, lm(Y ~ x_1 + x_2 + x_3 + x_4 + x1_squared))
   pooled_poly_com <- pool(model_poly_com)
   coeff_poly_com <- summary(pooled_poly_com)
@@ -168,11 +168,12 @@ for (i in 1:iterations) {
   
 }
 zeit <- toc()
-save.image(file='Environment_Q.RData')
+save.image(file='Environment_Q_n_imp.RData')
 
 ```
 
 # Calculate averages over all iterations of one method
+
 
 ```{r}
 
@@ -189,9 +190,11 @@ for (method_name in names(results_of_all_methods)) {
         df[covariate, "bias"]))
     coverage <- mean(sapply(method, function(df)
         df[covariate, "cov"]))
+    se <- mean(sapply(method, function(df)
+      df[covariate, "std.error"]))
 
     # Create a new data frame for the row to bind
-    new_row <- data.frame(estimate = coefficient, bias = bias, coverage = coverage)
+    new_row <- data.frame(estimate = coefficient, bias = bias, coverage = coverage, se = se)
 
     # Bind the row while preserving column names
     avg_results <- rbind(avg_results, new_row)
@@ -224,5 +227,10 @@ rownames(all_biases) <- covariates_names
 all_coverages <- sapply(all_average_results, function(df)
   df[,"coverage"])
 rownames(all_coverages) <- covariates_names
+
+all_se <- sapply(all_average_results, function(df)
+  df[,"se"])
+rownames(all_se) <- covariates_names
+
 
 ```
