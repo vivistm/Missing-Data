@@ -34,11 +34,10 @@ sinus_data <- function(seed){
   n <- 1000 # Observations
   
   # draw expected values:
-  mu <- (runif(p,-1,5))
+  mu <- (runif(p,1,5))
   
-  A <- matrix(rnorm(p^2), p, p)
-  A <- t(A) %*% A             
-  V <- cov2cor(A)
+  V <- matrix(0.5,p,p)   # correlation of 0.5 betweenn all 6 variables
+  diag(V) <- 1           # variance of 1
   
   # Datenframe
   x_df_org <- mvrnorm(n, mu, V) %>% data.frame()
@@ -84,7 +83,7 @@ results_of_all_methods <- list (
 )
 
 iterations <- 1000 #1000
-n_imp <- 30 #Hippel sagt 40 ?
+n_imp <- 40 #Hippel sagt 40 ?
 
 
 for (i in 1:iterations) {

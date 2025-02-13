@@ -35,7 +35,7 @@ interaction_data <- function(seed){
   n <- 1000 #observations
   
   # draw expected values:
-  mu <- (runif(p,-1,5))
+  mu <- (runif(p,1,5))
   A <- matrix(rnorm(p^2), p, p)
   A <- t(A) %*% A             
   V <- cov2cor(A)           
@@ -84,7 +84,7 @@ results_imp_first <- list()
 results_trans_first <- list()
 
 iterations <- 1000 #1000
-n_imp <- 30 #Hippel sagt 40 ?
+n_imp <- 40 #Hippel sagt 40 ?
 
 tic()
 set.seed(42)

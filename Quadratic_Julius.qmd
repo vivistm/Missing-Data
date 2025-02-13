@@ -32,11 +32,10 @@ quadratic_data <- function(seed){
   p <- 4  # Variabels
   n <- 500 # Observations
   
-  mu <- (runif(p,-1,5)) # Expected Values
+  mu <- (runif(p,1,5)) # Expected Values
   
-  A <- matrix(rnorm(p^2), p, p)  
-  A <- t(A) %*% A             
-  V <- cov2cor(A)          
+  V <- matrix(0.5,p,p)   # correlation of 0.5 betweenn all 4 variables
+  diag(V) <- 1           # variance of 1         
   
   # Datenframe
   x_df_org <- mvrnorm(n, mu, V) %>% data.frame()
@@ -82,7 +81,7 @@ results_of_all_methods <- list (
 )
 
 iterations <- 1000 #1000
-n_imp <- 30
+n_imp <- 40
 set.seed(123)
 tic()
 for (i in 1:iterations) {
