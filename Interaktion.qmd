@@ -83,8 +83,8 @@ results_of_all_methods <- list (
 results_imp_first <- list()
 results_trans_first <- list()
 
-iterations <- 100 #1000
-n_imp <- 10 #Hippel sagt 40 ?
+iterations <- 1000 #1000
+n_imp <- 30 #Hippel sagt 40 ?
 
 tic()
 set.seed(42)
@@ -109,7 +109,7 @@ for (i in 1:iterations) {
   coeff_CC <- data.frame("estimate" = coef(lm_CC),
                          "std.error"= summary(lm_CC)$coefficients[,2])
   results_of_all_methods[["cc"]][[i]] <- 
-  calculate_metrics(coeff_BD, true_beta)
+  calculate_metrics(coeff_CC, true_beta)
   
   #Impute, then transform (PMM)-----------------------------
   

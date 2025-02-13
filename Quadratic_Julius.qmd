@@ -81,8 +81,8 @@ results_of_all_methods <- list (
   #"cart_poly_com = list()
 )
 
-iterations <- 10 #1000
-n_imp <- 10
+iterations <- 1000 #1000
+n_imp <- 30
 set.seed(123)
 tic()
 for (i in 1:iterations) {
@@ -108,7 +108,7 @@ for (i in 1:iterations) {
                          "std.error"= summary(lm_CC)$coefficients[,2])
   
   results_of_all_methods[["cc"]][[i]] <- 
-    calculate_metrics(coeff_BD, true_beta)
+    calculate_metrics(coeff_CC, true_beta)
   
   ##Impute, then transform----------------------------------------------
  
